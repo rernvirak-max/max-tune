@@ -18,6 +18,10 @@ export default defineBoot(async ({ router }) => {
       return { name: 'home' }
     }
 
+    if (to.meta.requiresAdmin && !auth.isAdmin) {
+      return { name: 'admin-denied' }
+    }
+
     return true
   })
 })
