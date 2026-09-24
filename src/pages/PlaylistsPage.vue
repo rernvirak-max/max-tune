@@ -176,8 +176,46 @@ h2 {
 }
 
 .grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 18px;
+}
+
+.card {
+  text-decoration: none;
+  color: inherit;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 10px;
+  transition: transform 180ms var(--ease-out);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+}
+
+.cover {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #1c2030, #0d1018);
+  color: var(--mt-text-dim);
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.count {
+  margin-top: 2px;
+  color: var(--mt-text-muted);
+  font-size: 0.78rem;
 }
 </style>
