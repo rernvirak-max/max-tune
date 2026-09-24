@@ -44,12 +44,14 @@
 import { onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import TrackRow from '@/components/library/TrackRow.vue'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { useLikesStore } from '@/stores/likes-store'
 import { usePlayerStore } from '@/stores/player-store'
 
 const $q = useQuasar()
 const store = useLikesStore()
 const player = usePlayerStore()
+const connectivity = useConnectivity()
 
 onMounted(() => {
   store.fetchLiked().catch(() => {})
@@ -64,6 +66,7 @@ function playFrom(index) {
 }
 
 async function onLike(track) {
+  if (!connectivity.requireOnline()) return
   try {
     await store.toggle(track)
   } catch (err) {

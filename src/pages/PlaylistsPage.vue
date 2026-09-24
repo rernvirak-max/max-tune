@@ -48,11 +48,13 @@ import { onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { usePlaylistStore } from '@/stores/playlist-store'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { toEngineProxyUrl } from '@/helpers/mediaUrl'
 
 const $q = useQuasar()
 const router = useRouter()
 const store = usePlaylistStore()
+const connectivity = useConnectivity()
 
 onMounted(() => {
   store.fetchPlaylists().catch(() => {})
@@ -63,6 +65,7 @@ function coverOf(playlist) {
 }
 
 function openCreate() {
+  if (!connectivity.requireOnline()) return
   $q.dialog({
     title: 'New playlist',
     prompt: {

@@ -112,6 +112,44 @@
           </div>
         </div>
 
+
+        <div v-if="player.hasTrack" class="offline-actions row justify-center">
+          <q-btn
+            v-if="offline.isDownloaded(player.currentTrack.id)"
+            flat
+            no-caps
+            dense
+            icon="download_done"
+            :label="copy.state.available"
+            class="offline-btn available"
+            :aria-label="copy.state.available"
+            @click="onOfflineToggle"
+          />
+          <q-btn
+            v-else-if="offline.isDownloadable(player.currentTrack)"
+            flat
+            no-caps
+            dense
+            icon="download"
+            :label="copy.action.makeOffline"
+            class="offline-btn"
+            :aria-label="copy.action.makeOffline"
+            :loading="!!offline.getProgress(player.currentTrack.id)"
+            @click="onOfflineToggle"
+          />
+          <q-btn
+            v-else
+            flat
+            no-caps
+            dense
+            icon="download"
+            :label="copy.err.linked"
+            class="offline-btn dim"
+            disable
+            :aria-label="copy.err.linked"
+          />
+        </div>
+
         <div v-if="player.error" class="err">{{ player.error }}</div>
       </div>
     </q-card>
@@ -121,11 +159,17 @@
 <script setup>
 import { useQuasar } from 'quasar'
 import { usePlayerStore } from '@/stores/player-store'
+import { useOfflineStore } from '@/stores/offline-store'
+import { OFFLINE_COPY } from '@/constants/offline-copy'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { useLikesStore } from '@/stores/likes-store'
 import { formatDuration } from '@/helpers/mediaUrl'
 
 const $q = useQuasar()
 const player = usePlayerStore()
+const offline = useOfflineStore()
+const copy = OFFLINE_COPY
+const connectivity = useConnectivity()
 const likes = useLikesStore()
 
 function onToggle(open) {
@@ -147,8 +191,29 @@ function onVolume(event) {
   player.setVolume(Number(event.target.value))
 }
 
+
+async function onOfflineToggle() {
+  const track = player.currentTrack
+  if (!track) return
+  if (offline.isDownloaded(track.id)) {
+    $q.dialog({
+      title: copy.action.removeDownload,
+      message: `Remove offline copy of "${track.title}"? Your library in the cloud is unchanged.`,
+      cancel: true,
+      persistent: true,
+      dark: true,
+      ok: { label: copy.action.removeDownload, color: 'negative' },
+    }).onOk(async () => {
+      await offline.removeTrack(track.id)
+    })
+    return
+  }
+  await offline.downloadTrack(track)
+}
+
 async function onLike() {
   if (!player.currentTrack) return
+  if (!connectivity.requireOnline()) return
   try {
     await likes.toggle(player.currentTrack)
   } catch (err) {
@@ -335,4 +400,22 @@ async function onLike() {
     transition: none;
   }
 }
+
+.offline-actions {
+  width: 100%;
+}
+
+.offline-btn {
+  color: var(--mt-text-muted) !important;
+  border-radius: 999px;
+}
+
+.offline-btn.available {
+  color: var(--mt-accent) !important;
+}
+
+.offline-btn.dim {
+  opacity: 0.5;
+}
+
 </style>

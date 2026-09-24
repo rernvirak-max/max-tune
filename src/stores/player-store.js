@@ -1,8 +1,15 @@
 import { defineStore } from 'pinia'
+import { Notify } from 'quasar'
+import { OFFLINE_COPY } from '@/constants/offline-copy'
 import { toEngineProxyUrl } from '@/helpers/mediaUrl'
+import { useOfflineStore } from '@/stores/offline-store'
+import { isAppOffline } from '@/composables/useConnectivity'
 
 /** @type {HTMLAudioElement|null} */
 let audioEl = null
+
+/** Prevent infinite stream<->local fallback loops */
+let fallbackAttemptedFor = null
 
 /**
  * Module-scoped audio keeps playing across SPA navigations.
@@ -14,7 +21,6 @@ function getAudio() {
     audioEl = new Audio()
     audioEl.preload = 'metadata'
     audioEl.crossOrigin = 'anonymous'
-    // Keep element in the document tree — helps some Chromium background paths.
     audioEl.setAttribute('data-maxtune-audio', '1')
     audioEl.style.display = 'none'
     if (document.body) {
@@ -49,6 +55,20 @@ function hasMediaSession() {
   return typeof navigator !== 'undefined' && 'mediaSession' in navigator
 }
 
+function isBrowserOrEngineOffline() {
+  return isAppOffline()
+}
+
+function notifyPlayOffline() {
+  Notify.create({
+    type: 'negative',
+    message: OFFLINE_COPY.err.playOffline,
+    caption: OFFLINE_COPY.err.playOfflineHint,
+    position: 'top',
+    timeout: 3500,
+  })
+}
+
 export const usePlayerStore = defineStore('player', {
   state: () => ({
     currentTrack: null,
@@ -62,6 +82,7 @@ export const usePlayerStore = defineStore('player', {
     bufferedPct: 0,
     error: null,
     sheetOpen: false,
+    playingFromLocal: false,
     _bound: false,
     _mediaSessionBound: false,
   }),
@@ -69,7 +90,7 @@ export const usePlayerStore = defineStore('player', {
   getters: {
     hasTrack: (state) => Boolean(state.currentTrack),
     displayTitle: (state) => state.currentTrack?.title || 'Nothing playing',
-    displayArtist: (state) => state.currentTrack?.artist_name || '—',
+    displayArtist: (state) => state.currentTrack?.artist_name || '-',
     coverUrl: (state) => toEngineProxyUrl(state.currentTrack?.cover_url),
     progressPct: (state) => {
       if (!state.durationMs) return 0
@@ -129,13 +150,48 @@ export const usePlayerStore = defineStore('player', {
       })
 
       audio.addEventListener('error', () => {
-        this.isPlaying = false
-        this.error = 'Playback failed'
-        this.syncMediaSessionPlaybackState()
+        this.handlePlaybackError().catch(() => {})
       })
 
       this._bound = true
       this.bindMediaSessionHandlers()
+    },
+
+    /**
+     * Auto-fallback: online stream fail -> local blob once (O4).
+     */
+    async handlePlaybackError() {
+      const track = this.currentTrack
+      if (!track) {
+        this.isPlaying = false
+        this.error = 'Playback failed'
+        this.syncMediaSessionPlaybackState()
+        return
+      }
+
+      const trackKey = String(track.id)
+      if (fallbackAttemptedFor === trackKey || this.playingFromLocal) {
+        this.isPlaying = false
+        this.error = 'Playback failed'
+        this.syncMediaSessionPlaybackState()
+        return
+      }
+
+      const offline = useOfflineStore()
+      if (!offline.isDownloaded(track.id)) {
+        this.isPlaying = false
+        this.error = 'Playback failed'
+        this.syncMediaSessionPlaybackState()
+        return
+      }
+
+      fallbackAttemptedFor = trackKey
+      const ok = await this.playFromLocal(track)
+      if (!ok) {
+        this.isPlaying = false
+        this.error = 'Playback failed'
+        this.syncMediaSessionPlaybackState()
+      }
     },
 
     bindMediaSessionHandlers() {
@@ -144,7 +200,6 @@ export const usePlayerStore = defineStore('player', {
       const ms = navigator.mediaSession
       try {
         ms.setActionHandler('play', () => {
-          // Resume only — never toggle (OS Play must not pause on desync).
           this.resumeFromMediaSession().catch(() => {})
         })
         ms.setActionHandler('pause', () => {
@@ -169,7 +224,7 @@ export const usePlayerStore = defineStore('player', {
           this.updateMediaSessionPosition()
         })
       } catch {
-        // Some handlers unsupported on certain platforms — ignore.
+        // Some handlers unsupported on certain platforms - ignore.
       }
 
       this._mediaSessionBound = true
@@ -197,7 +252,6 @@ export const usePlayerStore = defineStore('player', {
           artwork: buildArtwork(cover),
         })
       } catch {
-        // MediaMetadata may fail without artwork URLs on some engines
         try {
           navigator.mediaSession.metadata = new MediaMetadata({
             title: track.title || 'Unknown title',
@@ -243,6 +297,47 @@ export const usePlayerStore = defineStore('player', {
 
     /**
      * @param {object} track
+     * @returns {Promise<boolean>}
+     */
+    async playFromLocal(track) {
+      const offline = useOfflineStore()
+      const blobUrl = await offline.getLocalBlobUrl(track.id)
+      if (!blobUrl) return false
+
+      this.bindAudioEvents()
+      const audio = getAudio()
+      if (!audio) return false
+
+      // Revoke previous track blob URL if switching away
+      if (this.currentTrack?.id && this.currentTrack.id !== track.id && this.playingFromLocal) {
+        offline.revokeBlobUrl(this.currentTrack.id)
+      }
+
+      this.error = null
+      this.playingFromLocal = true
+      this.currentTrack = track
+      this.positionMs = 0
+      this.durationMs = track.duration_ms || 0
+      this.updateMediaSessionMetadata()
+
+      audio.src = blobUrl
+      audio.load()
+
+      try {
+        await audio.play()
+        this.isPlaying = true
+        this.syncMediaSessionPlaybackState()
+        return true
+      } catch (err) {
+        this.isPlaying = false
+        this.error = err?.message || 'Could not start playback'
+        this.syncMediaSessionPlaybackState()
+        return false
+      }
+    },
+
+    /**
+     * @param {object} track
      * @param {object[]} [queue]
      */
     async playTrack(track, queue) {
@@ -250,17 +345,53 @@ export const usePlayerStore = defineStore('player', {
       const audio = getAudio()
       if (!audio) return
 
-      const streamUrl = toEngineProxyUrl(track.stream_url)
-      if (!streamUrl) {
-        this.error = 'No stream URL for this track'
-        return
-      }
-
       if (Array.isArray(queue)) {
         this.queue = queue
       }
 
+      fallbackAttemptedFor = null
       this.error = null
+
+      const offline = useOfflineStore()
+      await offline.hydrate()
+
+      const preferLocal = isBrowserOrEngineOffline()
+
+      if (preferLocal) {
+        if (offline.isDownloaded(track.id)) {
+          const ok = await this.playFromLocal(track)
+          if (ok) return
+        }
+        notifyPlayOffline()
+        this.error = OFFLINE_COPY.err.playOffline
+        // Keep previous track if any; else clear current selection without spinning
+        if (!this.currentTrack || this.currentTrack.id === track.id) {
+          // Still set current for UI context but do not load remote
+          this.currentTrack = track
+          this.isPlaying = false
+          this.playingFromLocal = false
+        }
+        this.syncMediaSessionPlaybackState()
+        return
+      }
+
+      const streamUrl = toEngineProxyUrl(track.stream_url)
+      if (!streamUrl) {
+        // Try local as last resort
+        if (offline.isDownloaded(track.id)) {
+          const ok = await this.playFromLocal(track)
+          if (ok) return
+        }
+        this.error = 'No stream URL for this track'
+        return
+      }
+
+      // Revoke previous local URL when switching to network
+      if (this.currentTrack?.id && this.playingFromLocal) {
+        offline.revokeBlobUrl(this.currentTrack.id)
+      }
+
+      this.playingFromLocal = false
       this.currentTrack = track
       this.positionMs = 0
       this.durationMs = track.duration_ms || 0
@@ -277,6 +408,12 @@ export const usePlayerStore = defineStore('player', {
         this.isPlaying = true
         this.syncMediaSessionPlaybackState()
       } catch (err) {
+        // Network play failed - try local once
+        if (offline.isDownloaded(track.id)) {
+          fallbackAttemptedFor = String(track.id)
+          const ok = await this.playFromLocal(track)
+          if (ok) return
+        }
         this.isPlaying = false
         this.error = err?.message || 'Could not start playback'
         this.syncMediaSessionPlaybackState()
@@ -339,7 +476,6 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
-
     async resumeFromMediaSession() {
       if (!this.currentTrack) return
       this.bindAudioEvents()
@@ -384,7 +520,7 @@ export const usePlayerStore = defineStore('player', {
     },
 
     /**
-     * @param {number} pct 0–100
+     * @param {number} pct 0-100
      */
     seekPct(pct) {
       const audio = getAudio()
@@ -396,7 +532,7 @@ export const usePlayerStore = defineStore('player', {
     },
 
     /**
-     * @param {number} value 0–1
+     * @param {number} value 0-1
      */
     setVolume(value) {
       this.volume = Math.min(1, Math.max(0, value))
@@ -406,6 +542,10 @@ export const usePlayerStore = defineStore('player', {
 
     clear() {
       const audio = getAudio()
+      const offline = useOfflineStore()
+      if (this.currentTrack?.id && this.playingFromLocal) {
+        offline.revokeBlobUrl(this.currentTrack.id)
+      }
       if (audio) {
         audio.pause()
         audio.removeAttribute('src')
@@ -414,10 +554,12 @@ export const usePlayerStore = defineStore('player', {
       this.currentTrack = null
       this.queue = []
       this.isPlaying = false
+      this.playingFromLocal = false
       this.positionMs = 0
       this.durationMs = 0
       this.error = null
       this.sheetOpen = false
+      fallbackAttemptedFor = null
       this.updateMediaSessionMetadata()
     },
   },

@@ -33,10 +33,18 @@ export const useAuthStore = defineStore('auth', {
       if (this.token) {
         try {
           await this.fetchMe()
-        } catch {
-          this.setToken(null)
-          this.user = null
-          this.app = null
+        } catch (err) {
+          // Keep token on network/unreachable failures so offline/reloaded
+          // sessions can still open Library/Downloaded. Only clear on real 401.
+          const status = err instanceof ApiError ? err.status : err?.status
+          if (status === 401) {
+            this.setToken(null)
+            this.user = null
+            this.app = null
+          } else {
+            this.user = null
+            this.app = null
+          }
         }
       }
       this.bootstrapped = true

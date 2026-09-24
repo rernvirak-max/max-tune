@@ -49,6 +49,18 @@
 
     <q-page-container class="mt-main">
       <div class="mt-ambient" aria-hidden="true" />
+      <div
+        v-if="bannerMessage"
+        class="mt-offline-banner row items-center"
+        role="status"
+      >
+        <q-icon
+          :name="isBrowserOffline ? 'wifi_off' : 'cloud_off'"
+          size="18px"
+          class="q-mr-sm"
+        />
+        <span>{{ bannerMessage }}</span>
+      </div>
       <router-view />
     </q-page-container>
 
@@ -76,9 +88,11 @@
 import { computed, ref } from 'vue'
 import PlayerBar from '@/components/player/PlayerBar.vue'
 import NowPlayingSheet from '@/components/player/NowPlayingSheet.vue'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { useAuthStore } from '@/stores/auth-store'
 
 const auth = useAuthStore()
+const { bannerMessage, isBrowserOffline } = useConnectivity()
 const drawerOpen = ref(true)
 
 const navItems = [
@@ -214,6 +228,24 @@ const initials = computed(() => {
     radial-gradient(ellipse 70% 80% at 10% -10%, rgba(61, 255, 181, 0.12), transparent 55%),
     radial-gradient(ellipse 50% 60% at 90% 0%, rgba(255, 122, 69, 0.1), transparent 50%);
   z-index: 0;
+}
+
+.mt-offline-banner {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 0;
+  padding: 8px 18px;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--mt-text-muted);
+  background: rgba(18, 20, 28, 0.72);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--mt-border);
+}
+
+[data-theme='light'] .mt-offline-banner {
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .mt-main :deep(.q-page) {

@@ -10,6 +10,11 @@
       <div class="cover flex flex-center" :class="{ live: player.hasTrack }">
         <img v-if="player.coverUrl" :src="player.coverUrl" alt="" />
         <q-icon v-else :name="player.hasTrack ? 'graphic_eq' : 'music_note'" size="22px" />
+        <span
+          v-if="player.currentTrack && offline.isDownloaded(player.currentTrack.id)"
+          class="offline-dot"
+          aria-hidden="true"
+        />
       </div>
       <div class="meta ellipsis">
         <div class="title ellipsis">{{ player.displayTitle }}</div>
@@ -107,11 +112,15 @@
 import { onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { usePlayerStore } from '@/stores/player-store'
+import { useOfflineStore } from '@/stores/offline-store'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { useLikesStore } from '@/stores/likes-store'
 import { formatDuration } from '@/helpers/mediaUrl'
 
 const $q = useQuasar()
 const player = usePlayerStore()
+const offline = useOfflineStore()
+const connectivity = useConnectivity()
 const likes = useLikesStore()
 
 onMounted(() => {
@@ -135,6 +144,7 @@ function onVolume(event) {
 
 async function onLike() {
   if (!player.currentTrack) return
+  if (!connectivity.requireOnline()) return
   try {
     await likes.toggle(player.currentTrack)
   } catch (err) {
@@ -196,6 +206,7 @@ async function onLike() {
 }
 
 .cover {
+  position: relative;
   width: 52px;
   height: 52px;
   border-radius: 10px;
@@ -341,4 +352,16 @@ async function onLike() {
     transition: none;
   }
 }
+
+.offline-dot {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mt-accent);
+  box-shadow: 0 0 0 2px rgba(7, 8, 12, 0.85);
+}
+
 </style>
