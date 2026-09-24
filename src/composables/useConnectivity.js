@@ -81,12 +81,15 @@ function ensureListeners() {
 }
 
 function teardownListeners() {
-  // Shared singleton — listeners stay for app lifetime.
-  // Exposed for tests / HMR cleanup.
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('online', onOnline)
+    window.removeEventListener('offline', onOffline)
+  }
   if (pingTimer) {
     clearInterval(pingTimer)
     pingTimer = null
   }
+  listenersBound = false
 }
 
 /**
