@@ -339,6 +339,27 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
+
+    async resumeFromMediaSession() {
+      if (!this.currentTrack) return
+      this.bindAudioEvents()
+      const audio = getAudio()
+      if (!audio) return
+
+      if (audio.paused && audio.src) {
+        try {
+          await audio.play()
+        } catch (err) {
+          this.error = err?.message || 'Could not resume'
+        }
+        return
+      }
+
+      if (!audio.src) {
+        await this.playTrack(this.currentTrack)
+      }
+    },
+
     async togglePlay() {
       if (!this.currentTrack) return
       this.bindAudioEvents()
