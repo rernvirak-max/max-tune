@@ -1,6 +1,12 @@
 <template>
   <div class="player-bar">
-    <div class="now row items-center">
+    <button
+      type="button"
+      class="now row items-center"
+      :disabled="!player.hasTrack"
+      aria-label="Open now playing"
+      @click="player.openSheet()"
+    >
       <div class="cover flex flex-center" :class="{ live: player.hasTrack }">
         <img v-if="player.coverUrl" :src="player.coverUrl" alt="" />
         <q-icon v-else :name="player.hasTrack ? 'graphic_eq' : 'music_note'" size="22px" />
@@ -9,17 +15,18 @@
         <div class="title ellipsis">{{ player.displayTitle }}</div>
         <div class="artist ellipsis">{{ player.displayArtist }}</div>
       </div>
-    </div>
+    </button>
 
     <div class="transport column items-center">
       <div class="row items-center q-gutter-sm">
-        <q-btn flat round dense icon="shuffle" disable class="ghost" size="sm" />
+        <q-btn flat round dense icon="shuffle" disable class="ghost" size="sm" aria-label="Shuffle (unavailable)" />
         <q-btn
           flat
           round
           dense
           icon="skip_previous"
           class="ghost"
+          aria-label="Previous track"
           :disable="!player.hasTrack"
           @click="player.playPrev()"
         />
@@ -28,6 +35,7 @@
           unelevated
           class="play-btn"
           :icon="player.isPlaying ? 'pause' : 'play_arrow'"
+          :aria-label="player.isPlaying ? 'Pause' : 'Play'"
           :disable="!player.hasTrack"
           @click="player.togglePlay()"
         />
@@ -37,14 +45,26 @@
           dense
           icon="skip_next"
           class="ghost"
+          aria-label="Next track"
           :disable="!player.hasTrack || player.queue.length < 2"
           @click="player.playNext()"
         />
-        <q-btn flat round dense icon="repeat" disable class="ghost" size="sm" />
+        <q-btn flat round dense icon="repeat" disable class="ghost" size="sm" aria-label="Repeat (unavailable)" />
       </div>
       <div class="scrub row items-center full-width">
         <span>{{ formatDuration(player.positionMs) }}</span>
-        <div class="track" @click="onSeek">
+        <div
+          class="track"
+          role="slider"
+          tabindex="0"
+          :aria-valuemin="0"
+          :aria-valuemax="100"
+          :aria-valuenow="Math.round(player.progressPct)"
+          aria-label="Seek"
+          @click="onSeek"
+          @keydown.left.prevent="nudge(-5)"
+          @keydown.right.prevent="nudge(5)"
+        >
           <div class="fill" :style="{ width: `${player.progressPct}%` }" />
         </div>
         <span>{{ formatDuration(player.durationMs || player.currentTrack?.duration_ms) }}</span>
@@ -60,6 +80,7 @@
         :icon="player.currentTrack?.liked ? 'favorite' : 'favorite_border'"
         class="like-btn"
         :class="{ on: player.currentTrack?.liked }"
+        :aria-label="player.currentTrack?.liked ? 'Unlike' : 'Like'"
         :disable="!player.hasTrack"
         @click="onLike"
       />
@@ -70,9 +91,14 @@
         min="0"
         max="1"
         step="0.01"
+        aria-label="Volume"
         :value="player.volume"
         @input="onVolume"
       />
+    </div>
+
+    <div class="mini-progress lt-sm" aria-hidden="true">
+      <div class="mini-fill" :style="{ width: `${player.progressPct}%` }" />
     </div>
   </div>
 </template>
@@ -99,6 +125,10 @@ function onSeek(event) {
   player.seekPct(pct)
 }
 
+function nudge(deltaPct) {
+  player.seekPct(Math.min(100, Math.max(0, player.progressPct + deltaPct)))
+}
+
 function onVolume(event) {
   player.setVolume(Number(event.target.value))
 }
@@ -115,6 +145,7 @@ async function onLike() {
 
 <style scoped>
 .player-bar {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 1.4fr 1fr;
   align-items: center;
@@ -124,6 +155,10 @@ async function onLike() {
   background: rgba(12, 14, 20, 0.88);
   backdrop-filter: blur(20px) saturate(1.2);
   border-top: 1px solid var(--mt-border);
+}
+
+[data-theme='light'] .player-bar {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 @media (max-width: 599px) {
@@ -140,6 +175,24 @@ async function onLike() {
 .now {
   gap: 12px;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.now:disabled {
+  cursor: default;
+}
+
+.now:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--mt-accent-soft);
 }
 
 .cover {
@@ -151,6 +204,10 @@ async function onLike() {
   color: var(--mt-text-dim);
   flex-shrink: 0;
   transition: box-shadow 240ms var(--ease-out);
+}
+
+[data-theme='light'] .cover {
+  background: linear-gradient(145deg, #e8e6df, #f0eee8);
 }
 
 .cover img {
@@ -176,7 +233,6 @@ async function onLike() {
 .artist {
   color: var(--mt-text-muted);
   font-size: 0.78rem;
-  margin-top: 2px;
 }
 
 .transport {
@@ -189,12 +245,16 @@ async function onLike() {
   width: 42px;
   height: 42px;
   background: var(--mt-text) !important;
-  color: #07080c !important;
+  color: var(--mt-bg) !important;
   transition: transform 160ms var(--ease-out);
 }
 
 .play-btn:hover:not(.disabled) {
   transform: scale(1.06);
+}
+
+.play-btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--mt-accent-soft);
 }
 
 .ghost {
@@ -222,6 +282,15 @@ async function onLike() {
   cursor: pointer;
 }
 
+[data-theme='light'] .track {
+  background: rgba(12, 14, 20, 0.12);
+}
+
+.track:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--mt-accent-soft);
+}
+
 .track .fill {
   height: 100%;
   background: var(--mt-accent);
@@ -245,5 +314,31 @@ async function onLike() {
 
 .like-btn.on {
   color: var(--mt-warm) !important;
+}
+
+.mini-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+[data-theme='light'] .mini-progress {
+  background: rgba(12, 14, 20, 0.08);
+}
+
+.mini-fill {
+  height: 100%;
+  background: var(--mt-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-btn,
+  .cover {
+    transition: none;
+  }
 }
 </style>
