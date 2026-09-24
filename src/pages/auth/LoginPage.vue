@@ -76,8 +76,15 @@ async function onSubmit() {
   background:
     radial-gradient(ellipse 80% 60% at 20% 10%, rgba(61, 255, 181, 0.16), transparent 50%),
     radial-gradient(ellipse 70% 50% at 90% 80%, rgba(255, 122, 69, 0.14), transparent 45%),
-    #07080c;
+    var(--mt-bg);
   color: var(--mt-text);
+}
+
+[data-theme='light'] .login-page {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(0, 168, 120, 0.14), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 90% 80%, rgba(232, 90, 42, 0.1), transparent 45%),
+    var(--mt-bg);
 }
 
 .login-stage {
@@ -100,7 +107,7 @@ async function onSubmit() {
   padding: 36px 32px 28px;
   border-radius: 24px;
   border: 1px solid var(--mt-border);
-  background: rgba(18, 20, 28, 0.85);
+  background: color-mix(in srgb, var(--mt-bg-elevated) 85%, transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -168,7 +175,7 @@ async function onSubmit() {
   height: 48px;
   border-radius: 999px !important;
   background: var(--mt-text) !important;
-  color: #07080c !important;
+  color: var(--mt-bg) !important;
   font-weight: 700 !important;
   font-size: 1rem !important;
 }
