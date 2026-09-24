@@ -1,11 +1,12 @@
 <template>
   <div
     class="dropzone"
-    :class="{ active: dragging, busy: library.uploading }"
+    :class="{ active: dragging, busy: library.uploading, offline: isOffline }"
     @dragenter.prevent="onEnter"
     @dragover.prevent="onEnter"
     @dragleave.prevent="onLeave"
     @drop.prevent="onDrop"
+    @click="onZoneClick"
   >
     <input
       ref="inputEl"
@@ -13,39 +14,47 @@
       type="file"
       accept=".mp3,.m4a,.flac,.wav,audio/mpeg,audio/mp4,audio/flac,audio/wav"
       multiple
+      :disabled="isOffline || library.uploading"
       @change="onPick"
     />
 
     <div class="inner column items-center text-center">
       <div class="icon-wrap flex flex-center">
-        <q-icon name="upload_file" size="32px" />
+        <q-icon :name="isOffline ? 'cloud_off' : 'upload_file'" size="32px" />
       </div>
-      <div class="title">Drop audio or click</div>
-      <div class="sub">mp3 · m4a · flac · wav</div>
+      <div class="title">{{ isOffline ? 'Connect to upload' : 'Drop audio or click' }}</div>
+      <div class="sub">{{ isOffline ? copy.err.mutation : 'mp3 · m4a · flac · wav' }}</div>
       <q-btn
         class="browse"
         unelevated
         no-caps
-        label="Choose files"
-        :disable="library.uploading"
-        @click="inputEl?.click()"
+        :label="isOffline ? copy.err.mutation : 'Choose files'"
+        :disable="library.uploading || isOffline"
+        @click.stop="onBrowse"
       />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { OFFLINE_COPY } from '@/constants/offline-copy'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { useLibraryStore } from '@/stores/library-store'
 
 const emit = defineEmits(['uploaded'])
 
 const library = useLibraryStore()
+const connectivity = useConnectivity()
+const copy = OFFLINE_COPY
 const inputEl = ref(null)
 const dragging = ref(false)
 let dragDepth = 0
 
+const isOffline = computed(() => connectivity.isOffline.value)
+
 function onEnter() {
+  if (isOffline.value) return
   dragDepth += 1
   dragging.value = true
 }
@@ -58,17 +67,31 @@ function onLeave() {
 async function handleFiles(files) {
   dragging.value = false
   dragDepth = 0
+  if (!connectivity.requireOnline()) return
   const created = await library.uploadFiles(files)
   if (created.length) emit('uploaded', created)
 }
 
 function onDrop(event) {
+  if (isOffline.value) {
+    connectivity.requireOnline()
+    return
+  }
   handleFiles(event.dataTransfer?.files)
 }
 
 function onPick(event) {
   handleFiles(event.target.files)
   event.target.value = ''
+}
+
+function onBrowse() {
+  if (!connectivity.requireOnline()) return
+  inputEl.value?.click()
+}
+
+function onZoneClick() {
+  if (isOffline.value) connectivity.requireOnline()
 }
 </script>
 
@@ -95,6 +118,10 @@ function onPick(event) {
 .dropzone.busy {
   opacity: 0.75;
   pointer-events: none;
+}
+
+.dropzone.offline {
+  opacity: 0.7;
 }
 
 .hidden-input {
