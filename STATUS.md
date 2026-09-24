@@ -10,8 +10,8 @@ Personal multi-tenant music platform: Quasar SPA (`max-tune`) + Laravel API (`ma
 **Phase 1 online MVP** — done  
 **Phase 1.1 Pulse Room UI + background / Media Session** — done (merged PR #1)  
 **Phase 1.25 Jamendo catalog** — code done, blocked on Jamendo account approval / `JAMENDO_CLIENT_ID`  
-**Phase 1.5 offline** — not started  
-**Phase 2 invite** — not started  
+**Phase 1.5 offline** — done (merged PR #2; SPA IndexedDB + PWA; no engine changes)  
+**Phase 2 invite** — Spec + Design locked; implement in progress  
 
 ---
 
@@ -51,9 +51,15 @@ Personal multi-tenant music platform: Quasar SPA (`max-tune`) + Laravel API (`ma
 - Search page tabs: **Library** | **Jamendo**
 - Linked imports use Jamendo stream/cover URLs (no file download yet)
 
+### Offline (Phase 1.5)
+- IndexedDB downloads; Wi‑Fi-only default ON; Settings storage manage
+- Player: local blob when offline; stream fail → local fallback
+- Library All | Downloaded; offline banner; mutations blocked offline
+- Quasar PWA shell (manifest + service worker)
+
 ### UI (Pulse Room)
 - Design tokens (mint live + warm coral), Syne + Outfit
-- Settings: Appearance + Playback / Media Session copy
+- Settings: Appearance + Playback / Media Session + offline storage
 - Dogfood bar: Android Chrome + desktop Chromium (iOS best-effort; Capacitor deferred)
 
 ### Tooling
@@ -112,20 +118,20 @@ Signed or owner auth:
 | --- | --- |
 | `/login` | Auth |
 | `/` | Home |
-| `/library` | Upload + library |
+| `/library` | Upload + library (+ Downloaded filter) |
 | `/liked` | Liked songs |
 | `/playlists`, `/playlists/:id` | Playlists |
 | `/search` | Library + Jamendo search |
-| `/settings` | Settings (theme + playback notes) |
+| `/settings` | Settings (theme + playback + offline) |
 
 ---
 
-## Next (when you say go)
+## Next (in flight / when you say go)
 
-1. **Unblock Jamendo** — approve account, set `JAMENDO_CLIENT_ID`, smoke-test Search → Jamendo.
-2. **Phase 1.5 offline** — cache / download for offline play (PWA or Capacitor path TBD).
-3. **Phase 2 invite** — invite codes / approval when leaving personal mode.
-4. Optional polish: shuffle/repeat, playlist reorder UI, stored (downloaded) Jamendo imports, Herd restore; logout → `player.clear()`, TrackRow playing naming, artwork MIME, Media Session tests.
+1. **Phase 2 invite** — invite codes, admin, quotas (Spec+Design locked; implement in progress).
+2. **Polish** — PWA NOTES/lockfile leftovers; shuffle/repeat (PRs coming).
+3. **Unblock Jamendo** — approve account, set `JAMENDO_CLIENT_ID`, smoke-test Search → Jamendo.
+4. Optional: playlist reorder UI, stored Jamendo imports, Herd restore.
 
 ---
 
