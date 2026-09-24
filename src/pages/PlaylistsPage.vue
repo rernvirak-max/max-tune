@@ -16,7 +16,7 @@
     </div>
     <div v-else-if="store.isEmpty" class="empty column items-center text-center">
       <div class="mt-empty-art art" />
-      <h2 class="mt-display">No playlists yet</h2>
+      <h2 class="mt-display">Create your first stack</h2>
       <p>Create a stack, then add tracks from your library.</p>
       <q-btn class="cta solid" unelevated no-caps label="Create playlist" @click="openCreate" />
     </div>
