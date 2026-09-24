@@ -48,11 +48,13 @@ import { onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { usePlaylistStore } from '@/stores/playlist-store'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { toEngineProxyUrl } from '@/helpers/mediaUrl'
 
 const $q = useQuasar()
 const router = useRouter()
 const store = usePlaylistStore()
+const connectivity = useConnectivity()
 
 onMounted(() => {
   store.fetchPlaylists().catch(() => {})
@@ -63,6 +65,7 @@ function coverOf(playlist) {
 }
 
 function openCreate() {
+  if (!connectivity.requireOnline()) return
   $q.dialog({
     title: 'New playlist',
     prompt: {
@@ -173,46 +176,8 @@ h2 {
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 18px;
-}
-
-.card {
-  text-decoration: none;
-  color: inherit;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  transition: transform 180ms var(--ease-out);
-}
-
-.card:hover {
-  transform: translateY(-3px);
-}
-
-.cover {
-  aspect-ratio: 1;
-  border-radius: 14px;
-  overflow: hidden;
-  background: linear-gradient(145deg, #1c2030, #0d1018);
-  color: var(--mt-text-dim);
-}
-
-.cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.title {
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-.count {
-  margin-top: 2px;
-  color: var(--mt-text-muted);
-  font-size: 0.78rem;
+  gap: 2px;
 }
 </style>
