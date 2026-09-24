@@ -20,8 +20,8 @@
       <div class="icon-wrap flex flex-center">
         <q-icon name="upload_file" size="32px" />
       </div>
-      <div class="title">Drop audio here</div>
-      <div class="sub">mp3 · m4a · flac · wav — or click to browse</div>
+      <div class="title">Drop audio or click</div>
+      <div class="sub">mp3 · m4a · flac · wav</div>
       <q-btn
         class="browse"
         unelevated
@@ -79,6 +79,7 @@ function onPick(event) {
   border-radius: 20px;
   background: var(--mt-bg-panel);
   padding: 36px 20px;
+  min-height: 120px;
   transition:
     border-color 180ms var(--ease-out),
     background 180ms var(--ease-out),

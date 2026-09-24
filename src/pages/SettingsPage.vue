@@ -2,17 +2,65 @@
   <q-page class="mt-page page">
     <header class="head">
       <h1 class="mt-display">Settings</h1>
-      <p class="sub">Account & storage</p>
+      <p class="sub">Account, appearance & playback</p>
     </header>
 
-    <div class="panel">
-      <div v-for="row in rows" :key="row.label" class="row-item">
-        <div class="label">{{ row.label }}</div>
-        <div class="value">{{ row.value }}</div>
+    <section class="section">
+      <h2 class="section-title">Account</h2>
+      <div class="panel">
+        <div v-for="row in rows" :key="row.label" class="row-item">
+          <div class="label">{{ row.label }}</div>
+          <div class="value">{{ row.value }}</div>
+        </div>
       </div>
-    </div>
+      <q-btn class="signout" outline no-caps icon="logout" label="Sign out" @click="onLogout" />
+    </section>
 
-    <q-btn class="signout" outline no-caps icon="logout" label="Sign out" @click="onLogout" />
+    <section class="section">
+      <h2 class="section-title">Appearance</h2>
+      <div class="panel theme-panel">
+        <div class="label">Theme</div>
+        <div class="theme-row row q-gutter-sm">
+          <button
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            type="button"
+            class="theme-chip"
+            :class="{ on: theme === opt.value }"
+            @click="setTheme(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+        <p class="hint">Dark is the Pulse Room default. Choice stays on this device only.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Playback</h2>
+      <div class="panel playback-panel">
+        <p>
+          MaxTune can keep playing when the screen locks on supported browsers — artwork and
+          controls follow the OS lock screen / media notification.
+        </p>
+        <ul>
+          <li>
+            <strong>Android Chrome</strong> (tab or installed PWA) and
+            <strong>desktop Chromium</strong>: expected to continue in background with Media Session
+            controls.
+          </li>
+          <li>
+            <strong>iOS Safari / PWA</strong>: best-effort only. Background audio needs a proper
+            audio element plus a user gesture to start; lock-screen artwork support varies by iOS
+            version. Do not expect parity with Android Chrome.
+          </li>
+        </ul>
+        <p class="hint">
+          MaxTune never pauses just because the tab is hidden or the window blurs — only an explicit
+          pause (in-app or OS) stops playback.
+        </p>
+      </div>
+    </section>
   </q-page>
 </template>
 
@@ -20,9 +68,17 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { useTheme } from '@/composables/useTheme'
 
 const auth = useAuthStore()
 const router = useRouter()
+const { theme, setTheme } = useTheme()
+
+const themeOptions = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' },
+  { value: 'system', label: 'System' },
+]
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`
@@ -70,6 +126,17 @@ h1 {
   color: var(--mt-text-muted);
 }
 
+.section {
+  margin-bottom: 28px;
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
 .panel {
   border: 1px solid var(--mt-border);
   border-radius: 16px;
@@ -99,8 +166,79 @@ h1 {
   text-align: right;
 }
 
+.theme-panel,
+.playback-panel {
+  padding: 16px 18px 18px;
+}
+
+.theme-row {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.theme-chip {
+  border: 1px solid var(--mt-border);
+  background: transparent;
+  color: var(--mt-text-muted);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition:
+    background 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out);
+}
+
+.theme-chip:hover {
+  color: var(--mt-text);
+  background: var(--mt-bg-panel-hover);
+}
+
+.theme-chip.on {
+  color: var(--mt-bg);
+  background: var(--mt-accent);
+  border-color: transparent;
+}
+
+.theme-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--mt-accent-soft);
+}
+
+.playback-panel p,
+.playback-panel li {
+  margin: 0;
+  color: var(--mt-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.playback-panel ul {
+  margin: 12px 0;
+  padding-left: 1.2em;
+}
+
+.playback-panel li + li {
+  margin-top: 8px;
+}
+
+.playback-panel strong {
+  color: var(--mt-text);
+  font-weight: 600;
+}
+
+.hint {
+  margin: 12px 0 0;
+  color: var(--mt-text-dim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .signout {
-  margin-top: 24px;
+  margin-top: 16px;
   color: #ff8f8f !important;
   border-color: rgba(255, 143, 143, 0.35) !important;
   border-radius: 999px;
