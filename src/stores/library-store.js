@@ -49,8 +49,8 @@ export const useLibraryStore = defineStore('library', {
         const item = { name: file.name, status: 'uploading', error: null, pct: 0 }
         this.uploadProgress.unshift(item)
         try {
-          if (file.size > 100 * 1024 * 1024) {
-            throw new Error('File exceeds 100 MB limit')
+          if (file.size > 50 * 1024 * 1024) {
+            throw new Error('File exceeds 50 MB limit')
           }
           const track = await uploadTrack(file, {
             onProgress: (pct) => {
