@@ -1,5 +1,9 @@
 <template>
-  <div class="track-row row items-center" @dblclick="$emit('play', track)">
+  <div
+    class="track-row row items-center"
+    :class="{ playing: isPlaying }"
+    @dblclick="$emit('play', track)"
+  >
     <div class="cover flex flex-center">
       <img v-if="coverSrc" :src="coverSrc" :alt="track.title" />
       <q-icon v-else name="music_note" size="22px" />
@@ -22,6 +26,7 @@
       :icon="track.liked ? 'favorite' : 'favorite_border'"
       class="like"
       :class="{ on: track.liked }"
+      :aria-label="track.liked ? 'Unlike' : 'Like'"
       @click.stop="$emit('like', track)"
     />
     <q-btn
@@ -30,6 +35,7 @@
       dense
       icon="play_arrow"
       class="play"
+      aria-label="Play"
       @click.stop="$emit('play', track)"
     />
     <q-btn
@@ -39,6 +45,7 @@
       dense
       icon="playlist_add"
       class="add"
+      aria-label="Add to playlist"
       @click.stop="$emit('add', track)"
     >
       <q-tooltip>Add to playlist</q-tooltip>
@@ -50,6 +57,7 @@
       dense
       :icon="removeIcon"
       class="danger"
+      aria-label="Remove"
       @click.stop="$emit('remove', track)"
     />
   </div>
@@ -58,6 +66,7 @@
 <script setup>
 import { computed } from 'vue'
 import { formatDuration, toEngineProxyUrl } from '@/helpers/mediaUrl'
+import { usePlayerStore } from '@/stores/player-store'
 
 const props = defineProps({
   track: { type: Object, required: true },
@@ -68,7 +77,9 @@ const props = defineProps({
 
 defineEmits(['play', 'remove', 'add', 'like'])
 
+const player = usePlayerStore()
 const coverSrc = computed(() => toEngineProxyUrl(props.track.cover_url))
+const isPlaying = computed(() => player.currentTrack?.id === props.track.id)
 </script>
 
 <style scoped>
@@ -77,10 +88,26 @@ const coverSrc = computed(() => toEngineProxyUrl(props.track.cover_url))
   padding: 10px 12px;
   border-radius: 12px;
   transition: background 160ms var(--ease-out);
+  position: relative;
 }
 
 .track-row:hover {
   background: var(--mt-bg-panel-hover);
+}
+
+.track-row.playing {
+  background: var(--mt-accent-soft);
+}
+
+.track-row.playing::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--mt-accent);
 }
 
 .cover {
@@ -93,6 +120,10 @@ const coverSrc = computed(() => toEngineProxyUrl(props.track.cover_url))
   flex-shrink: 0;
 }
 
+[data-theme='light'] .cover {
+  background: linear-gradient(145deg, #e8e6df, #f0eee8);
+}
+
 .cover img {
   width: 100%;
   height: 100%;
@@ -102,6 +133,10 @@ const coverSrc = computed(() => toEngineProxyUrl(props.track.cover_url))
 .title {
   font-weight: 600;
   font-size: 0.95rem;
+}
+
+.playing .title {
+  color: var(--mt-accent);
 }
 
 .artist {
