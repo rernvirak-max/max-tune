@@ -468,16 +468,17 @@ export const usePlayerStore = defineStore('player', {
      * @param {{ auto?: boolean }} [opts]
      */
     async playNext(opts = {}) {
+      // Advance in-context — do NOT re-pass queue (setQueue would re-shuffle / corrupt originalQueue).
       const idx = this.queueIndex()
       if (idx < 0 || !this.queue.length) return
 
       if (idx < this.queue.length - 1) {
-        await this.playTrack(this.queue[idx + 1], this.queue)
+        await this.playTrack(this.queue[idx + 1])
         return
       }
 
       if (this.repeat === 'all') {
-        await this.playTrack(this.queue[0], this.queue)
+        await this.playTrack(this.queue[0])
         return
       }
 
@@ -497,7 +498,7 @@ export const usePlayerStore = defineStore('player', {
 
       const idx = this.queueIndex()
       if (idx > 0) {
-        await this.playTrack(this.queue[idx - 1], this.queue)
+        await this.playTrack(this.queue[idx - 1])
       } else if (audio) {
         audio.currentTime = 0
         this.positionMs = 0
