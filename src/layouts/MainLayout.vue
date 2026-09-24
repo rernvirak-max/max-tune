@@ -67,12 +67,15 @@
         </router-link>
       </nav>
     </q-footer>
+
+    <NowPlayingSheet />
   </q-layout>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import PlayerBar from '@/components/player/PlayerBar.vue'
+import NowPlayingSheet from '@/components/player/NowPlayingSheet.vue'
 import { useAuthStore } from '@/stores/auth-store'
 
 const auth = useAuthStore()
@@ -240,5 +243,19 @@ const initials = computed(() => {
 
 .mt-mobile-tab.active {
   color: var(--mt-accent);
+}
+
+[data-theme='light'] .mt-sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f6f4ef 100%) !important;
+}
+
+[data-theme='light'] .mt-mobile-nav {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-brand-mark {
+    animation: none;
+  }
 }
 </style>
