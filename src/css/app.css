@@ -1,0 +1,107 @@
+/* MaxTune — music-first design tokens */
+:root {
+  --mt-bg: #07080c;
+  --mt-bg-elevated: #12141c;
+  --mt-bg-panel: rgba(255, 255, 255, 0.04);
+  --mt-bg-panel-hover: rgba(255, 255, 255, 0.07);
+  --mt-border: rgba(255, 255, 255, 0.08);
+  --mt-text: #f4f1ea;
+  --mt-text-muted: rgba(244, 241, 234, 0.55);
+  --mt-text-dim: rgba(244, 241, 234, 0.35);
+  --mt-accent: #3dffb5;
+  --mt-accent-soft: rgba(61, 255, 181, 0.14);
+  --mt-warm: #ff7a45;
+  --mt-sidebar: 240px;
+  --mt-player: 84px;
+  --mt-nav-mobile: 64px;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'Outfit', sans-serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#q-app {
+  min-height: 100%;
+  background: var(--mt-bg);
+  color: var(--mt-text);
+  font-family: var(--font-body);
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mt-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+.mt-page {
+  animation: mt-fade-up 420ms var(--ease-out) both;
+}
+
+@keyframes mt-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mt-pulse-soft {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.mt-empty-art {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(61, 255, 181, 0.35), transparent 45%),
+    radial-gradient(circle at 75% 70%, rgba(255, 122, 69, 0.28), transparent 40%),
+    linear-gradient(145deg, #1a1d2a, #0c0e14);
+  position: relative;
+  overflow: hidden;
+}
+
+.mt-empty-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(7, 8, 12, 0.55));
+}
+
+.rounded-borders {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Quasar dark overrides for shell */
+.q-drawer,
+.q-header,
+.q-footer {
+  background: transparent;
+}
+
+.q-field--dark .q-field__control,
+.q-field--outlined .q-field__control {
+  border-radius: 12px;
+}
