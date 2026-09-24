@@ -144,7 +144,8 @@ export const usePlayerStore = defineStore('player', {
       const ms = navigator.mediaSession
       try {
         ms.setActionHandler('play', () => {
-          this.togglePlay().catch(() => {})
+          // Resume only — never toggle (OS Play must not pause on desync).
+          this.resumeFromMediaSession().catch(() => {})
         })
         ms.setActionHandler('pause', () => {
           const audio = getAudio()
