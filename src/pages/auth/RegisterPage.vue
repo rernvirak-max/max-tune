@@ -7,78 +7,124 @@
           <span class="mark" aria-hidden="true" />
           <span class="mt-display name">MaxTune</span>
         </div>
-        <p class="tagline">Your private listening room</p>
+        <p class="tagline">Join with an invite</p>
 
-        <q-form class="form" @submit.prevent="onSubmit">
+        <div v-if="!inviteMode" class="closed">
+          <p class="error">Registration is closed</p>
+          <router-link :to="{ name: 'login' }" class="accent-link">Sign in</router-link>
+        </div>
+
+        <q-form v-else class="form" @submit.prevent="onSubmit">
+          <label class="field">
+            <span>Invite code</span>
+            <input
+              v-model="inviteCode"
+              type="text"
+              autocomplete="one-time-code"
+              :disabled="auth.loading"
+              aria-describedby="invite-err"
+            />
+          </label>
+          <label class="field">
+            <span>Name</span>
+            <input v-model="name" type="text" autocomplete="name" :disabled="auth.loading" />
+          </label>
           <label class="field">
             <span>Email</span>
-            <input
-              v-model="email"
-              type="email"
-              autocomplete="username"
-              :disabled="auth.loading"
-            />
+            <input v-model="email" type="email" autocomplete="username" :disabled="auth.loading" />
           </label>
           <label class="field">
             <span>Password</span>
             <input
               v-model="password"
               type="password"
-              autocomplete="current-password"
+              autocomplete="new-password"
+              :disabled="auth.loading"
+            />
+          </label>
+          <label class="field">
+            <span>Confirm password</span>
+            <input
+              v-model="passwordConfirmation"
+              type="password"
+              autocomplete="new-password"
               :disabled="auth.loading"
             />
           </label>
 
-          <div v-if="auth.error" class="error">
-            <div>{{ auth.error }}</div>
-            <div v-if="isDisabledError" class="error-hint">
-              Contact the person who invited you if that’s a surprise.
-            </div>
-          </div>
+          <div v-if="formError" id="invite-err" class="error" role="alert">{{ formError }}</div>
 
           <q-btn
             type="submit"
             class="submit"
             unelevated
             no-caps
-            label="Sign in"
+            label="Create account"
             :loading="auth.loading"
           />
         </q-form>
 
-        <p v-if="auth.isInviteMode || auth.registrationEnabled" class="foot">
-          Have an invite?
-          <router-link :to="{ name: 'register' }" class="accent-link">Create account</router-link>
+        <p class="foot">
+          Already listening?
+          <router-link :to="{ name: 'login' }" class="accent-link">Sign in</router-link>
         </p>
-        <p v-else class="foot">Personal mode — registration is closed</p>
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { Notify } from 'quasar'
 import { useAuthStore } from '@/stores/auth-store'
+import { ApiError } from '@/helpers/api'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const email = ref('vireak@maxtune.local')
-const password = ref('password')
+const inviteCode = ref('')
+const name = ref('')
+const email = ref('')
+const password = ref('')
+const passwordConfirmation = ref('')
+const formError = ref(null)
 
-const isDisabledError = computed(() =>
-  String(auth.error || '').toLowerCase().includes('disabled'),
-)
+const inviteMode = computed(() => auth.app?.mode === 'invite' || auth.registrationEnabled)
+
+onMounted(() => {
+  const code = typeof route.query.code === 'string' ? route.query.code.trim() : ''
+  if (code) inviteCode.value = code
+  if (!auth.app && auth.bootstrapped) {
+    // guest bootstrap may not have /me — treat missing mode as personal until login/me
+  }
+})
 
 async function onSubmit() {
+  formError.value = null
+  if (!inviteCode.value.trim()) {
+    formError.value = 'Invite code required'
+    return
+  }
   try {
-    await auth.login(email.value, password.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-    await router.replace(redirect)
-  } catch {
-    // error shown via auth.error
+    await auth.register({
+      name: name.value,
+      email: email.value,
+      password: password.value,
+      password_confirmation: passwordConfirmation.value,
+      invite_code: inviteCode.value.trim(),
+    })
+    Notify.create({ message: 'Welcome to MaxTune', color: 'dark', timeout: 2500 })
+    await router.replace({ name: 'home' })
+  } catch (err) {
+    const errors = err instanceof ApiError ? err.body?.errors : null
+    formError.value =
+      errors?.invite_code?.[0] ||
+      errors?.email?.[0] ||
+      errors?.password?.[0] ||
+      err?.message ||
+      "Couldn't create account"
   }
 }
 </script>
@@ -91,12 +137,6 @@ async function onSubmit() {
     radial-gradient(ellipse 70% 50% at 90% 80%, rgba(255, 122, 69, 0.14), transparent 45%),
     var(--mt-bg);
   color: var(--mt-text);
-}
-[data-theme='light'] .login-page {
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(0, 168, 120, 0.14), transparent 50%),
-    radial-gradient(ellipse 70% 50% at 90% 80%, rgba(232, 90, 42, 0.1), transparent 45%),
-    var(--mt-bg);
 }
 .login-stage {
   position: relative;
@@ -127,7 +167,6 @@ async function onSubmit() {
   background:
     radial-gradient(circle at 30% 30%, #3dffb5, transparent 55%),
     linear-gradient(135deg, #ff7a45, #1a2332);
-  box-shadow: 0 0 24px rgba(61, 255, 181, 0.25);
 }
 .name { font-size: 1.5rem; }
 .tagline {
@@ -136,13 +175,7 @@ async function onSubmit() {
   font-size: 0.95rem;
 }
 .form { display: flex; flex-direction: column; gap: 14px; }
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--mt-text-muted);
-}
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--mt-text-muted); }
 .field input {
   height: 48px;
   border-radius: 12px;
@@ -158,7 +191,6 @@ async function onSubmit() {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--mt-accent) 25%, transparent);
 }
 .error { color: #ff8f8f; font-size: 0.9rem; }
-.error-hint { color: var(--mt-text-muted); font-size: 0.8rem; margin-top: 4px; }
 .submit {
   margin-top: 8px;
   height: 48px;
@@ -169,4 +201,5 @@ async function onSubmit() {
 }
 .foot { margin-top: 20px; color: var(--mt-text-muted); font-size: 0.9rem; }
 .accent-link { color: var(--mt-accent); text-decoration: none; margin-left: 4px; }
+.closed { text-align: center; padding: 12px 0; }
 </style>

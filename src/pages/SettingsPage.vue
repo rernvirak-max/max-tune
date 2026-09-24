@@ -14,6 +14,31 @@
         </div>
       </div>
       <q-btn class="signout" outline no-caps icon="logout" label="Sign out" @click="onLogout" />
+      <q-btn
+        v-if="auth.isAdmin"
+        class="admin-link"
+        flat
+        no-caps
+        icon="admin_panel_settings"
+        label="Open admin"
+        :to="{ name: 'admin-invites' }"
+      />
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Library storage</h2>
+      <div class="panel">
+        <div class="label">Library storage</div>
+        <div class="value storage-value">{{ storageLabel }}</div>
+        <q-linear-progress
+          class="storage-meter q-mt-sm"
+          rounded
+          size="8px"
+          :value="storageRatio"
+          :color="storageHot ? 'warning' : 'primary'"
+        />
+        <p class="hint">Default limit 5 GB · Max 50 MB per file · About 20 uploads per hour</p>
+      </div>
     </section>
 
     <section class="section">
@@ -140,10 +165,26 @@ const themeOptions = [
 ]
 
 function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  const n = Number(bytes) || 0
+  if (n < 1024) return n + ' B'
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB'
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB'
+  return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
 }
+
+
+const storageUsed = computed(() => Number(auth.user?.storage_used_bytes || 0))
+const storageQuota = computed(() => Number(auth.user?.storage_quota_bytes || 5 * 1024 ** 3))
+const storageRatio = computed(() => {
+  const q = storageQuota.value
+  return q > 0 ? Math.min(1, storageUsed.value / q) : 0
+})
+const storageHot = computed(() => storageRatio.value >= 0.9)
+const storageLabel = computed(() => {
+  const used = storageUsed.value
+  const quota = storageQuota.value
+  return formatBytes(used) + ' / ' + formatBytes(quota)
+})
 
 const usedLabel = computed(() => formatStorageBytes(offline.totalBytes))
 
@@ -359,4 +400,9 @@ h1 {
   border-radius: 999px;
   padding: 0 18px;
 }
+
+.storage-value { font-weight: 600; margin-top: 4px; }
+.storage-meter { max-width: 420px; }
+.admin-link { margin-top: 10px; color: var(--mt-accent) !important; }
+.hint { color: var(--mt-text-muted); font-size: 0.85rem; margin-top: 10px; }
 </style>

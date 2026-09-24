@@ -12,6 +12,18 @@ const routes = [
     ],
   },
   {
+    path: '/register',
+    component: () => import('@/layouts/AuthLayout.vue'),
+    meta: { guest: true },
+    children: [
+      {
+        path: '',
+        name: 'register',
+        component: () => import('@/pages/auth/RegisterPage.vue'),
+      },
+    ],
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
@@ -50,6 +62,35 @@ const routes = [
         path: 'settings',
         name: 'settings',
         component: () => import('@/pages/SettingsPage.vue'),
+      },
+      {
+        path: 'admin',
+        name: 'admin',
+        redirect: { name: 'admin-invites' },
+        meta: { requiresAdmin: true },
+      },
+      {
+        path: 'admin/invites',
+        name: 'admin-invites',
+        component: () => import('@/pages/admin/AdminInvitesPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
+        path: 'admin/users',
+        name: 'admin-users',
+        component: () => import('@/pages/admin/AdminUsersPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
+        path: 'admin/tracks',
+        name: 'admin-tracks',
+        component: () => import('@/pages/admin/AdminTracksPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
+        path: 'admin/denied',
+        name: 'admin-denied',
+        component: () => import('@/pages/admin/AdminDeniedPage.vue'),
       },
     ],
   },
