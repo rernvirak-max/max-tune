@@ -11,6 +11,7 @@
 <style scoped>
 .auth-layout {
   min-height: 100vh;
-  background: #07080c;
+  background: var(--mt-bg);
+  color: var(--mt-text);
 }
 </style>

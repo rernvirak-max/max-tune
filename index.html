@@ -24,6 +24,22 @@
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png" />
     <link rel="icon" type="image/ico" href="favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-icon-180x180.png" />
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('maxtune-theme') || 'dark'
+          var resolved = mode
+          if (mode === 'system') {
+            resolved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+          }
+          if (resolved !== 'light' && resolved !== 'dark') resolved = 'dark'
+          document.documentElement.setAttribute('data-theme', resolved)
+          document.documentElement.style.colorScheme = resolved
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark')
+        }
+      })()
+    </script>
   </head>
   <body>
     <!-- quasar:entry-point -->

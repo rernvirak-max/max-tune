@@ -1,5 +1,6 @@
-/* MaxTune — music-first design tokens */
-:root {
+/* MaxTune — Pulse Room design tokens */
+:root,
+[data-theme='dark'] {
   --mt-bg: #07080c;
   --mt-bg-elevated: #12141c;
   --mt-bg-panel: rgba(255, 255, 255, 0.04);
@@ -14,9 +15,23 @@
   --mt-sidebar: 240px;
   --mt-player: 84px;
   --mt-nav-mobile: 64px;
-  --font-display: 'Syne', sans-serif;
-  --font-body: 'Outfit', sans-serif;
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-body: 'Outfit', system-ui, sans-serif;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-theme='light'] {
+  --mt-bg: #f6f4ef;
+  --mt-bg-elevated: #ffffff;
+  --mt-bg-panel: rgba(12, 14, 20, 0.04);
+  --mt-bg-panel-hover: rgba(12, 14, 20, 0.07);
+  --mt-border: rgba(12, 14, 20, 0.1);
+  --mt-text: #12141c;
+  --mt-text-muted: rgba(18, 20, 28, 0.58);
+  --mt-text-dim: rgba(18, 20, 28, 0.38);
+  --mt-accent: #00a878;
+  --mt-accent-soft: rgba(0, 168, 120, 0.12);
+  --mt-warm: #e85a2a;
 }
 
 *,
@@ -82,11 +97,22 @@ body {
   overflow: hidden;
 }
 
+[data-theme='light'] .mt-empty-art {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(0, 168, 120, 0.28), transparent 45%),
+    radial-gradient(circle at 75% 70%, rgba(232, 90, 42, 0.22), transparent 40%),
+    linear-gradient(145deg, #ebe8e0, #f6f4ef);
+}
+
 .mt-empty-art::after {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, transparent 40%, rgba(7, 8, 12, 0.55));
+}
+
+[data-theme='light'] .mt-empty-art::after {
+  background: linear-gradient(180deg, transparent 40%, rgba(246, 244, 239, 0.65));
 }
 
 .rounded-borders {
@@ -104,4 +130,16 @@ body {
 .q-field--dark .q-field__control,
 .q-field--outlined .q-field__control {
   border-radius: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-page {
+    animation: none;
+  }
+
+  .mt-brand-mark,
+  [class*='mt-pulse'],
+  .mt-brand-mark {
+    animation: none !important;
+  }
 }
