@@ -112,7 +112,7 @@ const props = defineProps({
 defineEmits(['retry', 'dismiss'])
 
 /** Retrying can't change these results (UI hides Retry; API still allows it) */
-const FINAL_REASONS = ['too_long', 'too_large']
+const FINAL_REASONS = ['too_long', 'too_large', 'unavailable']
 
 const copy = YOUTUBE_COPY
 const thumbSrc = computed(() => toEngineProxyUrl(props.row.thumbnail_url))
@@ -217,6 +217,18 @@ const subText = computed(() => {
 .actions {
   gap: 6px;
   flex-shrink: 0;
+}
+
+/*
+ * Desktop: every row reserves the actions width of Retry + Dismiss (~178px), right
+ * aligned, so the fixed 190px chip column lines up whether a row has two
+ * buttons, one close icon or none (running).
+ */
+@media (min-width: 600px) {
+  .actions {
+    min-width: 184px;
+    justify-content: flex-end;
+  }
 }
 
 .actions.dim {
