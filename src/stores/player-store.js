@@ -59,6 +59,33 @@ function isBrowserOrEngineOffline() {
   return isAppOffline()
 }
 
+
+const SHUFFLE_KEY = 'maxtune-shuffle'
+const REPEAT_KEY = 'maxtune-repeat'
+
+function loadShufflePref() {
+  if (typeof localStorage === 'undefined') return false
+  return localStorage.getItem(SHUFFLE_KEY) === 'true'
+}
+
+function loadRepeatPref() {
+  if (typeof localStorage === 'undefined') return 'off'
+  const v = localStorage.getItem(REPEAT_KEY)
+  return v === 'one' || v === 'all' ? v : 'off'
+}
+
+/** Fisher-Yates copy */
+function shuffleCopy(list) {
+  const a = [...list]
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = a[i]
+    a[i] = a[j]
+    a[j] = tmp
+  }
+  return a
+}
+
 function notifyPlayOffline() {
   Notify.create({
     type: 'negative',
@@ -74,8 +101,10 @@ export const usePlayerStore = defineStore('player', {
     currentTrack: null,
     queue: [],
     isPlaying: false,
-    shuffle: false,
-    repeat: 'off', // off | one | all
+    shuffle: loadShufflePref(),
+    repeat: loadRepeatPref(), // off | one | all
+    /** Unshuffled order while shuffle is on; null when shuffle off */
+    originalQueue: null,
     positionMs: 0,
     durationMs: 0,
     volume: 0.9,
@@ -346,7 +375,7 @@ export const usePlayerStore = defineStore('player', {
       if (!audio) return
 
       if (Array.isArray(queue)) {
-        this.queue = queue
+        this.setQueue(queue, track?.id)
       }
 
       fallbackAttemptedFor = null
@@ -439,16 +468,17 @@ export const usePlayerStore = defineStore('player', {
      * @param {{ auto?: boolean }} [opts]
      */
     async playNext(opts = {}) {
+      // Advance in-context — do NOT re-pass queue (setQueue would re-shuffle / corrupt originalQueue).
       const idx = this.queueIndex()
       if (idx < 0 || !this.queue.length) return
 
       if (idx < this.queue.length - 1) {
-        await this.playTrack(this.queue[idx + 1], this.queue)
+        await this.playTrack(this.queue[idx + 1])
         return
       }
 
       if (this.repeat === 'all') {
-        await this.playTrack(this.queue[0], this.queue)
+        await this.playTrack(this.queue[0])
         return
       }
 
@@ -468,7 +498,7 @@ export const usePlayerStore = defineStore('player', {
 
       const idx = this.queueIndex()
       if (idx > 0) {
-        await this.playTrack(this.queue[idx - 1], this.queue)
+        await this.playTrack(this.queue[idx - 1])
       } else if (audio) {
         audio.currentTime = 0
         this.positionMs = 0
@@ -540,6 +570,73 @@ export const usePlayerStore = defineStore('player', {
       if (audio) audio.volume = this.volume
     },
 
+
+    persistPlaybackPrefs() {
+      if (typeof localStorage === 'undefined') return
+      try {
+        localStorage.setItem(SHUFFLE_KEY, this.shuffle ? 'true' : 'false')
+        localStorage.setItem(REPEAT_KEY, this.repeat)
+      } catch {
+        // ignore quota / private mode
+      }
+    },
+
+    /**
+     * Keep current track first; shuffle the rest.
+     * @param {object[]} tracks
+     * @param {string|number|undefined|null} currentId
+     */
+    applyShuffleToQueue(tracks, currentId) {
+      const list = Array.isArray(tracks) ? [...tracks] : []
+      if (!list.length) return list
+      const current =
+        currentId != null && currentId !== ''
+          ? list.find((t) => t.id === currentId)
+          : null
+      const rest = current ? list.filter((t) => t.id !== current.id) : list
+      return current ? [current, ...shuffleCopy(rest)] : shuffleCopy(rest)
+    },
+
+    /**
+     * @param {object[]} tracks
+     * @param {string|number|undefined|null} [currentId]
+     */
+    setQueue(tracks, currentId) {
+      const list = Array.isArray(tracks) ? [...tracks] : []
+      if (this.shuffle && list.length) {
+        this.originalQueue = list
+        this.queue = this.applyShuffleToQueue(list, currentId ?? this.currentTrack?.id)
+      } else {
+        this.queue = list
+        this.originalQueue = null
+      }
+    },
+
+    toggleShuffle() {
+      if (!this.shuffle) {
+        if (this.queue.length) {
+          this.originalQueue = [...this.queue]
+          this.queue = this.applyShuffleToQueue(this.queue, this.currentTrack?.id)
+        }
+        this.shuffle = true
+      } else {
+        if (this.originalQueue?.length) {
+          this.queue = [...this.originalQueue]
+        }
+        this.originalQueue = null
+        this.shuffle = false
+      }
+      this.persistPlaybackPrefs()
+    },
+
+    /** Cycle off -> all -> one -> off */
+    cycleRepeat() {
+      const order = ['off', 'all', 'one']
+      const idx = order.indexOf(this.repeat)
+      this.repeat = order[(idx + 1) % order.length]
+      this.persistPlaybackPrefs()
+    },
+
     clear() {
       const audio = getAudio()
       const offline = useOfflineStore()
@@ -553,6 +650,7 @@ export const usePlayerStore = defineStore('player', {
       }
       this.currentTrack = null
       this.queue = []
+      this.originalQueue = null
       this.isPlaying = false
       this.playingFromLocal = false
       this.positionMs = 0

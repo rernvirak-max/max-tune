@@ -54,7 +54,19 @@
         </div>
 
         <div class="transport row items-center justify-center q-gutter-md">
-          <q-btn flat round dense icon="shuffle" disable class="ghost" size="sm" aria-label="Shuffle (unavailable)" />
+          <q-btn
+            flat
+            round
+            dense
+            icon="shuffle"
+            class="ghost"
+            :class="{ on: player.shuffle }"
+            size="sm"
+            :aria-label="player.shuffle ? 'Disable shuffle' : 'Enable shuffle'"
+            :aria-pressed="player.shuffle ? 'true' : 'false'"
+            :disable="!player.hasTrack || player.queue.length < 2"
+            @click="player.toggleShuffle()"
+          />
           <q-btn
             flat
             round
@@ -79,10 +91,20 @@
             icon="skip_next"
             class="ghost"
             aria-label="Next track"
-            :disable="!player.hasTrack || player.queue.length < 2"
+            :disable="!player.hasTrack || (player.queue.length < 2 && player.repeat !== 'all')"
             @click="player.playNext()"
           />
-          <q-btn flat round dense icon="repeat" disable class="ghost" size="sm" aria-label="Repeat (unavailable)" />
+          <q-btn
+            flat
+            round
+            dense
+            :icon="player.repeat === 'one' ? 'repeat_one' : 'repeat'"
+            class="ghost"
+            :class="{ on: player.repeat !== 'off' }"
+            size="sm"
+            :aria-label="repeatAria"
+            @click="player.cycleRepeat()"
+          />
         </div>
 
         <div class="extras row items-center justify-between full-width">
@@ -157,6 +179,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { usePlayerStore } from '@/stores/player-store'
 import { useOfflineStore } from '@/stores/offline-store'
@@ -171,6 +194,12 @@ const offline = useOfflineStore()
 const copy = OFFLINE_COPY
 const connectivity = useConnectivity()
 const likes = useLikesStore()
+
+const repeatAria = computed(() => {
+  if (player.repeat === 'one') return 'Repeat one'
+  if (player.repeat === 'all') return 'Repeat all'
+  return 'Repeat off'
+})
 
 function onToggle(open) {
   if (!open) player.closeSheet()
@@ -371,6 +400,10 @@ async function onLike() {
 
 .ghost {
   color: var(--mt-text-muted) !important;
+}
+
+.ghost.on {
+  color: var(--mt-accent) !important;
 }
 
 .ghost-icon {
