@@ -22,14 +22,15 @@
       <div class="icon-wrap flex flex-center">
         <q-icon :name="isOffline ? 'cloud_off' : 'upload_file'" size="32px" />
       </div>
-      <div class="title">{{ isOffline ? 'Connect to upload' : 'Drop audio or click' }}</div>
-      <div class="sub">{{ isOffline ? copy.err.mutation : 'mp3 · m4a · flac · wav' }}</div>
+      <div class="title">{{ isOffline ? 'Uploads need a connection' : 'Drop audio or click' }}</div>
+      <div v-if="!isOffline" class="sub">mp3 · m4a · flac · wav</div>
       <q-btn
+        v-if="!isOffline"
         class="browse"
         unelevated
         no-caps
-        :label="isOffline ? copy.err.mutation : 'Choose files'"
-        :disable="library.uploading || isOffline"
+        label="Choose files"
+        :disable="library.uploading"
         @click.stop="onBrowse"
       />
     </div>
@@ -38,7 +39,6 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { OFFLINE_COPY } from '@/constants/offline-copy'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useLibraryStore } from '@/stores/library-store'
 
@@ -46,7 +46,6 @@ const emit = defineEmits(['uploaded'])
 
 const library = useLibraryStore()
 const connectivity = useConnectivity()
-const copy = OFFLINE_COPY
 const inputEl = ref(null)
 const dragging = ref(false)
 let dragDepth = 0

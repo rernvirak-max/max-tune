@@ -5,7 +5,12 @@
     @dblclick="$emit('play', track)"
   >
     <div class="cover flex flex-center">
-      <img v-if="coverSrc" :src="coverSrc" :alt="track.title" />
+      <img
+        v-if="coverSrc && !isBrokenImage(coverSrc)"
+        :src="coverSrc"
+        alt=""
+        @error="markBrokenImage(coverSrc)"
+      />
       <q-icon v-else name="music_note" size="22px" />
     </div>
 
@@ -158,7 +163,8 @@
 import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
-import { formatDuration, toEngineProxyUrl } from '@/helpers/mediaUrl'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
+import { formatDuration } from '@/helpers/mediaUrl'
 import { useOfflineStore } from '@/stores/offline-store'
 import { usePlayerStore } from '@/stores/player-store'
 
@@ -176,7 +182,8 @@ const player = usePlayerStore()
 const offline = useOfflineStore()
 const copy = OFFLINE_COPY
 
-const coverSrc = computed(() => toEngineProxyUrl(props.track.cover_url))
+// Cached cover when downloaded (offline-safe), else the engine URL
+const coverSrc = computed(() => offline.coverFor(props.track))
 const isPlaying = computed(() => player.currentTrack?.id === props.track.id)
 const canDownload = computed(() => offline.isDownloadable(props.track))
 const isAvailable = computed(() => offline.isDownloaded(props.track.id))
