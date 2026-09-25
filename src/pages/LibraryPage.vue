@@ -1,7 +1,7 @@
 <template>
   <q-page class="mt-page page">
     <header class="head row items-end justify-between">
-      <div>
+      <div class="col">
         <h1 class="mt-display">Library</h1>
         <p class="sub">
           {{
@@ -10,7 +10,7 @@
               : library.trackCount
                 ? `${library.trackCount} tracks`
                 : 'Songs you own - private by default'
-          }}
+          }}<template v-if="imports.activeCount"> · {{ imports.activeCount }} importing</template>
         </p>
       </div>
       <q-input
@@ -28,6 +28,19 @@
           <q-icon name="search" />
         </template>
       </q-input>
+      <q-btn
+        ref="youtubeEntry"
+        rounded
+        unelevated
+        no-caps
+        class="yt-entry"
+        :class="{ 'is-offline': isOffline }"
+        icon="add_link"
+        :label="$q.screen.xs ? ytCopy.entryShort : ytCopy.entry"
+        :aria-label="ytCopy.entry"
+        :aria-disabled="isOffline"
+        @click="openYoutubeDialog"
+      />
     </header>
 
     <div class="filter-row row q-gutter-sm q-mb-md">
@@ -70,7 +83,12 @@
         @click="setFilter('downloaded')"
       />
     </div>
-    <UploadDropzone v-else-if="filterMode === 'all'" class="q-mb-lg" @uploaded="onUploaded" />
+    <UploadDropzone
+      v-else-if="filterMode === 'all'"
+      ref="dropzone"
+      class="q-mb-lg"
+      @uploaded="onUploaded"
+    />
 
     <div v-if="filterMode === 'all' && library.uploadProgress.length" class="progress q-mb-md">
       <div v-for="(item, i) in library.uploadProgress.slice(0, 5)" :key="i" class="prog-row">
@@ -78,6 +96,8 @@
         <span :class="item.status">{{ statusLabel(item) }}</span>
       </div>
     </div>
+
+    <ImportsGroup v-if="filterMode === 'all'" />
 
     <template v-if="filterMode === 'downloaded'">
       <div v-if="!offline.hydrated && offline.hydrating" class="state">Loading...</div>
@@ -108,14 +128,42 @@
         :message="library.error"
         @retry="loadLibrary"
       />
-      <div v-else-if="library.isEmpty && !library.error && !isOffline" class="state muted">
-        Drop a file above to start your collection.
+      <div
+        v-else-if="library.isEmpty && !library.error && !isOffline"
+        class="state muted empty-lib column items-start"
+      >
+        <div class="mt-empty-art art" />
+        <p class="empty-title">{{ ytCopy.emptyTitle }}</p>
+        <p class="empty-hint">{{ ytCopy.emptyBody }}</p>
+        <div class="empty-actions row items-center">
+          <q-btn
+            outline
+            rounded
+            no-caps
+            class="empty-upload"
+            icon="upload"
+            :label="ytCopy.emptyUpload"
+            @click="dropzone?.browse()"
+          />
+          <q-btn
+            rounded
+            unelevated
+            no-caps
+            class="yt-entry"
+            icon="add_link"
+            :label="ytCopy.entry"
+            @click="openYoutubeDialog"
+          />
+        </div>
       </div>
       <div v-else class="list">
         <TrackRow
           v-for="(track, index) in library.tracks"
+          :id="`track-${track.id}`"
           :key="track.id"
           :track="track"
+          :fresh="imports.freshTrackIds.includes(track.id)"
+          :class="{ flash: flashTrackId === track.id }"
           show-add
           @play="onPlay(index)"
           @add="onAdd"
@@ -124,6 +172,13 @@
         />
       </div>
     </template>
+
+    <YoutubeImportDialog
+      v-model="youtubeDialogOpen"
+      @open-track="scrollToTrack"
+      @see-imports="scrollToImports"
+      @hide="restoreEntryFocus"
+    />
   </q-page>
 </template>
 
@@ -133,11 +188,15 @@ import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import UploadDropzone from '@/components/library/UploadDropzone.vue'
 import TrackRow from '@/components/library/TrackRow.vue'
+import ImportsGroup from '@/components/library/ImportsGroup.vue'
+import YoutubeImportDialog from '@/components/library/YoutubeImportDialog.vue'
 import LoadError from '@/components/common/LoadError.vue'
 import { ERROR_COPY } from '@/constants/error-copy'
 import { toUserMessage } from '@/helpers/userError'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
+import { YOUTUBE_COPY } from '@/constants/youtube-copy'
 import { useConnectivity } from '@/composables/useConnectivity'
+import { useImportsStore } from '@/stores/imports-store'
 import { useLibraryStore } from '@/stores/library-store'
 import { useOfflineStore } from '@/stores/offline-store'
 import { usePlayerStore } from '@/stores/player-store'
@@ -152,12 +211,20 @@ const offline = useOfflineStore()
 const player = usePlayerStore()
 const playlists = usePlaylistStore()
 const likes = useLikesStore()
+const imports = useImportsStore()
 const connectivity = useConnectivity()
 const { isOffline, isBrowserOffline } = connectivity
 const copy = OFFLINE_COPY
+const ytCopy = YOUTUBE_COPY
 const search = ref('')
 const filterMode = ref('all')
+const youtubeDialogOpen = ref(false)
+const youtubeEntry = ref(null)
+const dropzone = ref(null)
+const flashTrackId = ref(null)
 let searchTimer = null
+/** Duplicate "Open track" highlight */
+const FLASH_MS = 1600
 
 const downloadedTracks = computed(() =>
   offline.downloadedList.map((row) => ({
@@ -181,6 +248,39 @@ function syncFilterFromRoute() {
   filterMode.value = route.query.offline === '1' ? 'downloaded' : 'all'
 }
 
+function openYoutubeDialog() {
+  if (isOffline.value) {
+    $q.notify({ type: 'warning', message: ytCopy.offlineToast, position: 'top' })
+    return
+  }
+  youtubeDialogOpen.value = true
+}
+
+// Optional deep link /library?add=youtube (future share target)
+function openYoutubeFromRoute() {
+  if (route.query.add !== 'youtube') return
+  const query = { ...route.query }
+  delete query.add
+  router.replace({ name: 'library', query })
+  openYoutubeDialog()
+}
+
+function restoreEntryFocus() {
+  youtubeEntry.value?.$el?.focus()
+}
+
+function scrollToImports() {
+  document.getElementById('imports')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function scrollToTrack(id) {
+  document.getElementById(`track-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  flashTrackId.value = id
+  setTimeout(() => {
+    flashTrackId.value = null
+  }, FLASH_MS)
+}
+
 function loadLibrary() {
   return library
     .fetchTracks()
@@ -195,11 +295,14 @@ onMounted(() => {
   offline.hydrate().catch(() => {})
   if (!isBrowserOffline.value) {
     loadLibrary()
+    imports.fetch()
     playlists.fetchPlaylists().catch(() => {})
   }
+  openYoutubeFromRoute()
 })
 
 watch(() => route.query.offline, syncFilterFromRoute)
+watch(() => route.query.add, openYoutubeFromRoute)
 
 // Connection dropped: switch to Downloaded. Back online: keep the user's choice,
 // just retry a library load that failed while offline.
@@ -209,6 +312,7 @@ watch(isOffline, (nowOffline) => {
   } else if (library.error || !library.tracks.length) {
     loadLibrary()
   }
+  imports.syncPolling()
 })
 
 function onSearch(value) {
@@ -344,6 +448,25 @@ h1 {
   width: min(240px, 100%);
 }
 
+.yt-entry {
+  min-height: 44px;
+  padding: 0 18px;
+  background: var(--mt-text);
+  color: var(--mt-bg);
+  font-weight: 600;
+}
+
+.yt-entry.is-offline {
+  opacity: 0.38;
+}
+
+@media (max-width: 599px) {
+  .head .search {
+    order: 3;
+    width: 100%;
+  }
+}
+
 .filter-chip {
   border: 1px solid var(--mt-border);
   background: transparent;
@@ -408,8 +531,23 @@ h1 {
   color: var(--mt-text-muted);
 }
 
-.empty-dl {
+.empty-dl,
+.empty-lib {
   gap: 8px;
+}
+
+.empty-actions {
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.empty-upload {
+  min-height: 44px;
+  color: var(--mt-text);
+}
+
+.list > .flash {
+  background: var(--mt-accent-soft);
 }
 
 .offline-card {
