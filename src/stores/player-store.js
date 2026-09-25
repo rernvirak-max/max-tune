@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { Notify } from 'quasar'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
+import { ERROR_COPY } from '@/constants/error-copy'
 import { toEngineProxyUrl } from '@/helpers/mediaUrl'
+import { toUserMessage } from '@/helpers/userError'
 import { useOfflineStore } from '@/stores/offline-store'
 import { isAppOffline } from '@/composables/useConnectivity'
 
@@ -58,7 +60,6 @@ function hasMediaSession() {
 function isBrowserOrEngineOffline() {
   return isAppOffline()
 }
-
 
 const SHUFFLE_KEY = 'maxtune-shuffle'
 const REPEAT_KEY = 'maxtune-repeat'
@@ -120,7 +121,8 @@ export const usePlayerStore = defineStore('player', {
     hasTrack: (state) => Boolean(state.currentTrack),
     displayTitle: (state) => state.currentTrack?.title || 'Nothing playing',
     displayArtist: (state) => state.currentTrack?.artist_name || '-',
-    coverUrl: (state) => toEngineProxyUrl(state.currentTrack?.cover_url),
+    /** Cached cover for downloaded tracks (offline-safe), else the engine URL */
+    coverUrl: (state) => useOfflineStore().coverFor(state.currentTrack),
     progressPct: (state) => {
       if (!state.durationMs) return 0
       return Math.min(100, (state.positionMs / state.durationMs) * 100)
@@ -309,7 +311,8 @@ export const usePlayerStore = defineStore('player', {
     },
 
     updateMediaSessionPosition() {
-      if (!hasMediaSession() || typeof navigator.mediaSession.setPositionState !== 'function') return
+      if (!hasMediaSession() || typeof navigator.mediaSession.setPositionState !== 'function')
+        return
       const audio = getAudio()
       const duration = audio?.duration
       if (!duration || !Number.isFinite(duration) || duration <= 0) return
@@ -359,7 +362,10 @@ export const usePlayerStore = defineStore('player', {
         return true
       } catch (err) {
         this.isPlaying = false
-        this.error = err?.message || 'Could not start playback'
+        this.error = toUserMessage(err, ERROR_COPY.action.play, {
+          context: 'playback',
+          allowServerMessage: false,
+        })
         this.syncMediaSessionPlaybackState()
         return false
       }
@@ -444,7 +450,10 @@ export const usePlayerStore = defineStore('player', {
           if (ok) return
         }
         this.isPlaying = false
-        this.error = err?.message || 'Could not start playback'
+        this.error = toUserMessage(err, ERROR_COPY.action.play, {
+          context: 'playback',
+          allowServerMessage: false,
+        })
         this.syncMediaSessionPlaybackState()
       }
     },
@@ -516,7 +525,10 @@ export const usePlayerStore = defineStore('player', {
         try {
           await audio.play()
         } catch (err) {
-          this.error = err?.message || 'Could not resume'
+          this.error = toUserMessage(err, ERROR_COPY.action.resume, {
+            context: 'resume',
+            allowServerMessage: false,
+          })
         }
         return
       }
@@ -545,7 +557,10 @@ export const usePlayerStore = defineStore('player', {
       try {
         await audio.play()
       } catch (err) {
-        this.error = err?.message || 'Could not resume'
+        this.error = toUserMessage(err, ERROR_COPY.action.resume, {
+          context: 'resume',
+          allowServerMessage: false,
+        })
       }
     },
 
@@ -570,7 +585,6 @@ export const usePlayerStore = defineStore('player', {
       if (audio) audio.volume = this.volume
     },
 
-
     persistPlaybackPrefs() {
       if (typeof localStorage === 'undefined') return
       try {
@@ -590,9 +604,7 @@ export const usePlayerStore = defineStore('player', {
       const list = Array.isArray(tracks) ? [...tracks] : []
       if (!list.length) return list
       const current =
-        currentId != null && currentId !== ''
-          ? list.find((t) => t.id === currentId)
-          : null
+        currentId != null && currentId !== '' ? list.find((t) => t.id === currentId) : null
       const rest = current ? list.filter((t) => t.id !== current.id) : list
       return current ? [current, ...shuffleCopy(rest)] : shuffleCopy(rest)
     },
