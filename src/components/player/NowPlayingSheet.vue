@@ -6,7 +6,7 @@
     transition-hide="slide-down"
     @update:model-value="onToggle"
   >
-    <q-card class="sheet column" :class="{ mobile: $q.screen.lt.sm }">
+    <q-card class="sheet column no-wrap" :class="{ mobile: $q.screen.lt.sm }">
       <div class="sheet-wash" aria-hidden="true" />
 
       <div class="sheet-top row items-center">
@@ -23,15 +23,15 @@
         <div style="width: 40px" />
       </div>
 
-      <div class="sheet-body column items-center col">
+      <div class="sheet-body column no-wrap items-center col">
         <div class="art flex flex-center" :class="{ live: player.hasTrack }">
           <img v-if="player.coverUrl" :src="player.coverUrl" alt="" />
           <q-icon v-else name="album" size="64px" />
         </div>
 
         <div class="meta text-center">
-          <div class="title">{{ player.displayTitle }}</div>
-          <div class="artist">{{ player.displayArtist }}</div>
+          <div class="title ellipsis">{{ player.displayTitle }}</div>
+          <div class="artist ellipsis">{{ player.displayArtist }}</div>
         </div>
 
         <div class="scrub row items-center full-width">
@@ -134,7 +134,6 @@
           </div>
         </div>
 
-
         <div v-if="player.hasTrack" class="offline-actions row justify-center">
           <q-btn
             v-if="offline.isDownloaded(player.currentTrack.id)"
@@ -219,7 +218,6 @@ function nudge(deltaPct) {
 function onVolume(event) {
   player.setVolume(Number(event.target.value))
 }
-
 
 async function onOfflineToggle() {
   const track = player.currentTrack
@@ -308,10 +306,13 @@ async function onLike() {
 .sheet-body {
   padding: 12px 28px 32px;
   gap: 22px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .art {
-  width: min(72vw, 320px);
+  --art-max-viewport-height: 34vh;
+  width: min(72vw, 320px, var(--art-max-viewport-height));
   aspect-ratio: 1;
   border-radius: 18px;
   overflow: hidden;
@@ -425,6 +426,7 @@ async function onLike() {
 
 .err {
   font-size: 0.75rem;
+  overflow-wrap: anywhere;
   color: #ff8f8f;
 }
 
@@ -450,5 +452,4 @@ async function onLike() {
 .offline-btn.dim {
   opacity: 0.5;
 }
-
 </style>
