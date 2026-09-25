@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 import { deleteTrack, listTracks, uploadTrack } from '@/services/engine/tracks'
 
 /** Files uploaded at once; overlaps transfer latency without flooding the engine */
@@ -31,7 +33,10 @@ export const useLibraryStore = defineStore('library', {
         this.tracks = data.data || []
         this.meta = data.meta || null
       } catch (err) {
-        this.error = err?.message || 'Failed to load library'
+        this.error = toUserMessage(err, ERROR_COPY.load.library, {
+          context: 'library load',
+          allowServerMessage: false,
+        })
         throw err
       } finally {
         this.loading = false
@@ -72,7 +77,9 @@ export const useLibraryStore = defineStore('library', {
       const item = this.uploadProgress[0]
       try {
         if (file.size > MAX_UPLOAD_BYTES) {
-          throw new Error('File exceeds 50 MB limit')
+          throw Object.assign(new Error('File exceeds 50 MB limit'), {
+            userMessage: 'File exceeds 50 MB limit',
+          })
         }
         const track = await uploadTrack(file, {
           onProgress: (pct) => {
@@ -85,7 +92,10 @@ export const useLibraryStore = defineStore('library', {
         return track
       } catch (err) {
         item.status = 'error'
-        item.error = err?.message || 'Upload failed'
+        item.error = toUserMessage(err, ERROR_COPY.action.upload, {
+          context: 'upload',
+          network: ERROR_COPY.action.uploadNetwork,
+        })
         this.error = item.error
         return null
       }

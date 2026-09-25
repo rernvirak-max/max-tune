@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 import {
   attachTrack,
   createPlaylist,
@@ -31,7 +33,10 @@ export const usePlaylistStore = defineStore('playlists', {
         const data = await listPlaylists()
         this.playlists = data.data || []
       } catch (err) {
-        this.error = err?.message || 'Failed to load playlists'
+        this.error = toUserMessage(err, ERROR_COPY.load.playlists, {
+          context: 'playlists load',
+          allowServerMessage: false,
+        })
         throw err
       } finally {
         this.loading = false
@@ -45,7 +50,14 @@ export const usePlaylistStore = defineStore('playlists', {
         this.current = await getPlaylist(id)
         return this.current
       } catch (err) {
-        this.error = err?.message || 'Failed to load playlist'
+        // 404: page shows "Playlist not found" instead of an error
+        this.error =
+          err?.status === 404
+            ? null
+            : toUserMessage(err, ERROR_COPY.load.playlist, {
+                context: 'playlist load',
+                allowServerMessage: false,
+              })
         this.current = null
         throw err
       } finally {

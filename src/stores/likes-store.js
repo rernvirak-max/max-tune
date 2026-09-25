@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 import { likeTrack, listLikedTracks, unlikeTrack } from '@/services/engine/likes'
 import { useLibraryStore } from '@/stores/library-store'
 import { usePlayerStore } from '@/stores/player-store'
@@ -24,7 +26,10 @@ export const useLikesStore = defineStore('likes', {
         const data = await listLikedTracks({ per_page: 100 })
         this.tracks = data.data || []
       } catch (err) {
-        this.error = err?.message || 'Failed to load liked songs'
+        this.error = toUserMessage(err, ERROR_COPY.load.liked, {
+          context: 'liked load',
+          allowServerMessage: false,
+        })
         throw err
       } finally {
         this.loading = false
