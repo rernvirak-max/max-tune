@@ -11,6 +11,7 @@
 <style scoped>
 .auth-layout {
   min-height: 100vh;
+  overflow-x: hidden;
   background: var(--mt-bg);
   color: var(--mt-text);
 }

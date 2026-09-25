@@ -4,6 +4,7 @@
       v-model="drawerOpen"
       show-if-above
       bordered
+      :breakpoint="drawerBreakpoint"
       :width="240"
       class="mt-sidebar"
     >
@@ -59,16 +60,8 @@
 
     <q-page-container class="mt-main">
       <div class="mt-ambient" aria-hidden="true" />
-      <div
-        v-if="bannerMessage"
-        class="mt-offline-banner row items-center"
-        role="status"
-      >
-        <q-icon
-          :name="isBrowserOffline ? 'wifi_off' : 'cloud_off'"
-          size="18px"
-          class="q-mr-sm"
-        />
+      <div v-if="bannerMessage" class="mt-offline-banner row items-center" role="status">
+        <q-icon :name="isBrowserOffline ? 'wifi_off' : 'cloud_off'" size="18px" class="q-mr-sm" />
         <span>{{ bannerMessage }}</span>
       </div>
       <router-view />
@@ -87,6 +80,16 @@
           <q-icon :name="item.icon" size="22px" />
           <span>{{ item.label }}</span>
         </router-link>
+        <button
+          type="button"
+          class="mt-mobile-tab col column items-center justify-center"
+          :class="{ active: drawerOpen }"
+          aria-label="Open menu"
+          @click="drawerOpen = true"
+        >
+          <q-icon name="menu" size="22px" />
+          <span>More</span>
+        </button>
       </nav>
     </q-footer>
 
@@ -95,7 +98,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
+import { useRoute } from 'vue-router'
 import PlayerBar from '@/components/player/PlayerBar.vue'
 import NowPlayingSheet from '@/components/player/NowPlayingSheet.vue'
 import { useConnectivity } from '@/composables/useConnectivity'
@@ -103,7 +108,19 @@ import { useAuthStore } from '@/stores/auth-store'
 
 const auth = useAuthStore()
 const { bannerMessage, isBrowserOffline } = useConnectivity()
-const drawerOpen = ref(true)
+const $q = useQuasar()
+// Same cut-off as the lt-sm bottom nav and the max-width: 599px media queries
+const drawerBreakpoint = $q.screen.sizes.sm - 1
+const drawerOpen = ref(false)
+
+// The overlay drawer (phones) should not stay open over the page we just navigated to
+const route = useRoute()
+watch(
+  () => route.fullPath,
+  () => {
+    if ($q.screen.lt.sm) drawerOpen.value = false
+  },
+)
 
 const navItems = [
   { name: 'home', label: 'Home', icon: 'home' },
@@ -138,7 +155,7 @@ const initials = computed(() => {
   min-height: 100vh;
 }
 
-.mt-sidebar {
+.mt-shell :deep(.mt-sidebar) {
   background: linear-gradient(180deg, #0c0e14 0%, #07080c 100%) !important;
   border-right: 1px solid var(--mt-border) !important;
 }
@@ -276,6 +293,11 @@ const initials = computed(() => {
 }
 
 .mt-mobile-tab {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
   color: var(--mt-text-dim);
   text-decoration: none;
   font-size: 0.65rem;
@@ -287,7 +309,7 @@ const initials = computed(() => {
   color: var(--mt-accent);
 }
 
-[data-theme='light'] .mt-sidebar {
+[data-theme='light'] .mt-shell :deep(.mt-sidebar) {
   background: linear-gradient(180deg, #ffffff 0%, #f6f4ef 100%) !important;
 }
 
