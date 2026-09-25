@@ -7,7 +7,7 @@
     aria-labelledby="yt-dialog-title"
     @update:model-value="$emit('update:modelValue', $event)"
     @show="onShow"
-    @hide="reset"
+    @hide="onHide"
   >
     <q-card class="yt-card" :class="{ phone: isPhone }">
       <div v-if="isPhone" v-touch-swipe.mouse.down="close" class="grabber-zone">
@@ -159,7 +159,7 @@ import { useImportsStore } from '@/stores/imports-store'
 defineProps({
   modelValue: { type: Boolean, default: false },
 })
-const emit = defineEmits(['update:modelValue', 'open-track', 'see-imports'])
+const emit = defineEmits(['update:modelValue', 'open-track', 'see-imports', 'hide'])
 
 /** Live validation waits for typing to settle */
 const VALIDATE_DEBOUNCE_MS = 250
@@ -248,6 +248,12 @@ function close() {
   emit('update:modelValue', false)
 }
 
+/** Reset for next time, then let the page restore focus to its entry button. */
+function onHide() {
+  reset()
+  emit('hide')
+}
+
 function reset() {
   clearTimeout(debounceTimer)
   url.value = ''
@@ -310,7 +316,6 @@ async function submit() {
   try {
     await imports.submit(url.value.trim())
     close()
-    $q.notify({ color: 'dark', icon: 'schedule', message: copy.toastQueued, position: 'top' })
   } catch (err) {
     serverError.value = submitErrorCopy(err)
     duplicate.value = err?.status === 409 ? (err.body?.existing ?? null) : null
