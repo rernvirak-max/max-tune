@@ -2,7 +2,7 @@
   <div class="player-bar">
     <button
       type="button"
-      class="now row items-center"
+      class="now row no-wrap items-center"
       :disabled="!player.hasTrack"
       aria-label="Open now playing"
       @click="player.openSheet()"
@@ -395,5 +395,4 @@ async function onLike() {
   background: var(--mt-accent);
   box-shadow: 0 0 0 2px rgba(7, 8, 12, 0.85);
 }
-
 </style>

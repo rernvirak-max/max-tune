@@ -13,7 +13,7 @@
           class="back"
           :to="{ name: 'playlists' }"
         />
-        <div class="hero row items-end q-gutter-lg">
+        <div class="hero row no-wrap items-end">
           <div class="cover flex flex-center">
             <img v-if="coverSrc" :src="coverSrc" :alt="playlist.title" />
             <q-icon v-else name="queue_music" size="48px" />
@@ -112,11 +112,7 @@ import TrackRow from '@/components/library/TrackRow.vue'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
 import { toEngineProxyUrl } from '@/helpers/mediaUrl'
 import { useConnectivity } from '@/composables/useConnectivity'
-import {
-  formatStorageBytes,
-  isTrackDownloadable,
-  useOfflineStore,
-} from '@/stores/offline-store'
+import { formatStorageBytes, isTrackDownloadable, useOfflineStore } from '@/stores/offline-store'
 import { usePlaylistStore } from '@/stores/playlist-store'
 import { usePlayerStore } from '@/stores/player-store'
 import { useLikesStore } from '@/stores/likes-store'
@@ -142,7 +138,9 @@ const sizeAbout = computed(() => {
   if (!tracks.value.length) return ''
   const downloadable = tracks.value.filter(isTrackDownloadable)
   if (!downloadable.length) return ''
-  return copy.state.sizeAbout(formatStorageBytes(aboutBytes.value || downloadable.reduce((s, t) => s + (t.size || 0), 0)))
+  return copy.state.sizeAbout(
+    formatStorageBytes(aboutBytes.value || downloadable.reduce((s, t) => s + (t.size || 0), 0)),
+  )
 })
 
 const job = computed(() => {
@@ -164,9 +162,7 @@ const allDownloadableCached = computed(() => {
   return dl.every((t) => offline.isDownloaded(t.id))
 })
 
-const hasAnyDownloads = computed(() =>
-  tracks.value.some((t) => offline.isDownloaded(t.id)),
-)
+const hasAnyDownloads = computed(() => tracks.value.some((t) => offline.isDownloaded(t.id)))
 
 const playlistDownloadIcon = computed(() =>
   allDownloadableCached.value ? 'download_done' : 'download',
@@ -213,7 +209,8 @@ async function onDownloadPlaylist() {
 function onRemoveDownloads() {
   $q.dialog({
     title: 'Remove downloads?',
-    message: 'Deletes offline audio for tracks in this playlist on this device. Cloud library unchanged.',
+    message:
+      'Deletes offline audio for tracks in this playlist on this device. Cloud library unchanged.',
     cancel: true,
     persistent: true,
     dark: true,
@@ -313,7 +310,15 @@ function onDetach(track) {
 }
 
 .hero {
+  gap: 24px;
   margin-bottom: 28px;
+}
+
+@media (max-width: 599px) {
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .cover {
@@ -351,6 +356,8 @@ function onDetach(track) {
 h1 {
   margin: 6px 0 0;
   font-size: clamp(1.8rem, 4vw, 2.8rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .desc,
