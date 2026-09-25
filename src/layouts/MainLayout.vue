@@ -286,7 +286,8 @@ const initials = computed(() => {
 }
 
 .mt-mobile-nav {
-  height: var(--mt-nav-mobile);
+  height: calc(var(--mt-nav-mobile) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   background: rgba(10, 11, 16, 0.92);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--mt-border);
@@ -302,11 +303,28 @@ const initials = computed(() => {
   text-decoration: none;
   font-size: 0.65rem;
   gap: 2px;
-  transition: color 160ms var(--ease-out);
+  transition:
+    color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.mt-mobile-tab .q-icon {
+  box-sizing: content-box;
+  padding: 2px 16px;
+  border-radius: 999px;
+  transition: background 200ms var(--ease-out);
+}
+
+.mt-mobile-tab:active {
+  transform: scale(0.94);
 }
 
 .mt-mobile-tab.active {
   color: var(--mt-accent);
+}
+
+.mt-mobile-tab.active .q-icon {
+  background: var(--mt-accent-soft);
 }
 
 [data-theme='light'] .mt-shell :deep(.mt-sidebar) {
@@ -320,6 +338,11 @@ const initials = computed(() => {
 @media (prefers-reduced-motion: reduce) {
   .mt-brand-mark {
     animation: none;
+  }
+
+  .mt-mobile-tab,
+  .mt-mobile-tab .q-icon {
+    transition: none;
   }
 }
 </style>
