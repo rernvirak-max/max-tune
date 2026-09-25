@@ -29,6 +29,16 @@
         <div class="col" />
 
         <router-link
+          v-if="auth.isAdmin"
+          :to="{ name: 'admin-invites' }"
+          class="mt-nav-link row items-center q-mb-sm"
+          :class="{ active: String($route.name || '').startsWith('admin') }"
+        >
+          <q-icon name="admin_panel_settings" size="22px" />
+          <span>Admin</span>
+        </router-link>
+
+        <router-link
           :to="{ name: 'settings' }"
           class="mt-nav-link row items-center q-mb-sm"
           :class="{ active: $route.name === 'settings' }"
