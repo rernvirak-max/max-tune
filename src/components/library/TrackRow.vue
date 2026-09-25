@@ -30,7 +30,7 @@
       @click.stop="$emit('like', track)"
     />
 
-    <div class="offline-ctrl flex flex-center" @click.stop>
+    <div class="offline-ctrl flex flex-center gt-xs" @click.stop>
       <q-circular-progress
         v-if="dlProgress?.status === 'downloading'"
         :value="dlProgress.pct || 0"
@@ -102,7 +102,7 @@
       round
       dense
       icon="playlist_add"
-      class="add"
+      class="add gt-xs"
       aria-label="Add to playlist"
       @click.stop="$emit('add', track)"
     >
@@ -114,10 +114,43 @@
       round
       dense
       :icon="removeIcon"
-      class="danger"
+      class="danger gt-xs"
       aria-label="Remove"
       @click.stop="$emit('remove', track)"
     />
+    <q-btn
+      flat
+      round
+      dense
+      icon="more_vert"
+      class="more lt-sm"
+      aria-label="More actions"
+      @click.stop
+    >
+      <q-menu dark anchor="bottom right" self="top right">
+        <q-list dark class="mt-menu">
+          <q-item
+            v-close-popup
+            clickable
+            :disable="!canDownload || dlProgress?.status === 'downloading'"
+            @click="onOfflineClick"
+          >
+            <q-item-section avatar>
+              <q-icon :name="isAvailable ? 'download_done' : 'download'" />
+            </q-item-section>
+            <q-item-section>{{ offlineMenuLabel }}</q-item-section>
+          </q-item>
+          <q-item v-if="showAdd" v-close-popup clickable @click="$emit('add', track)">
+            <q-item-section avatar><q-icon name="playlist_add" /></q-item-section>
+            <q-item-section>Add to playlist</q-item-section>
+          </q-item>
+          <q-item v-if="showRemove" v-close-popup clickable @click="$emit('remove', track)">
+            <q-item-section avatar><q-icon :name="removeIcon" /></q-item-section>
+            <q-item-section>Remove</q-item-section>
+          </q-item>
+        </q-list>
+      </q-menu>
+    </q-btn>
   </div>
 </template>
 
@@ -152,6 +185,11 @@ const pctLabel = computed(() => {
   const pct = dlProgress.value?.pct
   if (pct == null || pct === 0) return copy.state.downloading
   return copy.state.downloadingPct(pct)
+})
+const offlineMenuLabel = computed(() => {
+  if (isAvailable.value) return copy.action.removeDownload
+  if (!canDownload.value) return copy.err.linked
+  return copy.action.makeOffline
 })
 
 async function onOfflineClick() {
@@ -296,6 +334,15 @@ async function onOfflineClick() {
 
 .danger:hover {
   color: #ff8f8f !important;
+}
+
+.more {
+  color: var(--mt-text-muted) !important;
+}
+
+.mt-menu {
+  background: var(--mt-bg-elevated);
+  min-width: 200px;
 }
 
 @media (prefers-reduced-motion: reduce) {
