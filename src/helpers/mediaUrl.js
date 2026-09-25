@@ -1,6 +1,10 @@
+import { getApiEndpoints } from '@/helpers/api/apiConfig'
+
 /**
- * Turn an absolute engine URL into a same-origin /engine proxy URL
- * so <audio> / <img> work from the Quasar dev server.
+ * Local dev only: turn an absolute engine media URL into the same-origin
+ * /engine Vite proxy path so <audio> / <img> work from the Quasar dev server.
+ * In staging/production (ENGINE_URL is absolute) the engine URL is used as-is;
+ * the SPA host has no /engine proxy (its nginx would 404).
  *
  * @param {string|null|undefined} absoluteUrl
  * @returns {string|null}
@@ -8,10 +12,17 @@
 export function toEngineProxyUrl(absoluteUrl) {
   if (!absoluteUrl) return null
 
+  const usesDevProxy = getApiEndpoints().ENGINE_URL.startsWith('/')
+
   try {
     const url = new URL(absoluteUrl, window.location.origin)
-    if (url.pathname.startsWith('/api/')) {
+    if (usesDevProxy && url.pathname.startsWith('/api/')) {
       return `/engine${url.pathname}${url.search}`
+    }
+    // Never hand an http:// media URL to an https page (mixed content)
+    if (window.location.protocol === 'https:' && url.protocol === 'http:') {
+      url.protocol = 'https:'
+      return url.toString()
     }
     return absoluteUrl
   } catch {
