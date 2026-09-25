@@ -7,7 +7,7 @@
     @update:model-value="onToggle"
   >
     <q-card class="sheet column no-wrap" :class="{ mobile: $q.screen.lt.sm }">
-      <div v-if="player.coverUrl" class="sheet-art-bg" :style="artBackdrop" aria-hidden="true" />
+      <div v-if="hasCover" class="sheet-art-bg" :style="artBackdrop" aria-hidden="true" />
       <div class="sheet-wash" aria-hidden="true" />
 
       <div class="sheet-top row items-center">
@@ -26,7 +26,12 @@
 
       <div class="sheet-body column no-wrap items-center col">
         <div class="art flex flex-center" :class="{ live: player.hasTrack }">
-          <img v-if="player.coverUrl" :src="player.coverUrl" alt="" />
+          <img
+            v-if="hasCover"
+            :src="player.coverUrl"
+            alt=""
+            @error="markBrokenImage(player.coverUrl)"
+          />
           <q-icon v-else name="album" size="64px" />
         </div>
 
@@ -187,6 +192,9 @@ import { OFFLINE_COPY } from '@/constants/offline-copy'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useLikesStore } from '@/stores/likes-store'
 import { formatDuration } from '@/helpers/mediaUrl'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 
 const $q = useQuasar()
 const player = usePlayerStore()
@@ -201,6 +209,7 @@ const repeatAria = computed(() => {
   return 'Repeat off'
 })
 
+const hasCover = computed(() => Boolean(player.coverUrl) && !isBrokenImage(player.coverUrl))
 const artBackdrop = computed(() => ({ backgroundImage: `url("${player.coverUrl}")` }))
 
 function onToggle(open) {
@@ -247,7 +256,7 @@ async function onLike() {
   try {
     await likes.toggle(player.currentTrack)
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Could not update like' })
+    $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.like) })
   }
 }
 </script>
