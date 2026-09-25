@@ -44,6 +44,9 @@ export function parseYoutubeUrl(input) {
     if (segments[0] === 'shorts') {
       candidate = segments[1]
       isShort = true
+    } else if (segments[0] === 'watch' && url.searchParams.getAll('v').length > 1) {
+      // Ambiguous `v=a&v=b`: invalid here and on the engine alike
+      return { status: 'invalid' }
     } else if (segments[0] === 'watch' && url.searchParams.has('v')) {
       candidate = url.searchParams.get('v')
     } else if (['watch', 'playlist'].includes(segments[0]) && url.searchParams.has('list')) {

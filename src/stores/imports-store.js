@@ -25,6 +25,10 @@ const DESKTOP_TOAST_OFFSET = [16, 100]
 
 let pollTimer = null
 let listenersBound = false
+/** The list request in flight; polls and resumes share it instead of overlapping. */
+let inFlight = null
+/** Bumped by stop(): results of requests started before it are dropped. */
+let session = 0
 
 const isActive = (row) => ACTIVE_STATUSES.includes(row.status)
 const newestFirst = (a, b) =>
@@ -45,6 +49,8 @@ export const useImportsStore = defineStore('imports', {
     list: [],
     loaded: false,
     freshTrackIds: [],
+    /** Optimistically dismissed rows; a poll that raced the DELETE must not bring them back. */
+    dismissedIds: [],
   }),
 
   getters: {
@@ -57,25 +63,51 @@ export const useImportsStore = defineStore('imports', {
   },
 
   actions: {
-    async fetch() {
+    fetch() {
       this.bindListeners()
-      const previous = new Map(this.list.map((row) => [row.id, row.status]))
+      if (inFlight) return inFlight
+      const request = this.load(session).finally(() => {
+        if (inFlight === request) inFlight = null
+      })
+      inFlight = request
+      return request
+    },
+
+    /** One list request; toasts only for rows this client saw active before. */
+    async load(startedIn) {
+      let rows = null
       try {
-        this.list = await listImports('all')
+        rows = await listImports('all')
       } catch (err) {
         // Rows keep their last known state; the next poll or resume tries again.
         console.warn('[maxtune] imports load failed', err)
-      } finally {
-        this.loaded = true
+      }
+      if (startedIn !== session) return
+
+      this.loaded = true
+      if (rows) {
+        const previous = new Map(this.list.map((row) => [row.id, row.status]))
+        this.list = rows.filter((row) => !this.dismissedIds.includes(row.id))
+
+        const settled = this.list.filter((row) => ACTIVE_STATUSES.includes(previous.get(row.id)))
+        this.announceReady(settled.filter((row) => row.status === 'ready'))
+        settled
+          .filter((row) => row.status === 'failed')
+          .forEach((row) =>
+            notify({ message: YOUTUBE_COPY.toastFailed(row.title || row.video_id) }),
+          )
       }
 
-      const settled = this.list.filter((row) => ACTIVE_STATUSES.includes(previous.get(row.id)))
-      this.announceReady(settled.filter((row) => row.status === 'ready'))
-      settled
-        .filter((row) => row.status === 'failed')
-        .forEach((row) => notify({ message: YOUTUBE_COPY.toastFailed(row.title || row.video_id) }))
-
       this.syncPolling()
+    },
+
+    /** Logout / 401: stop polling and forget this user's imports. */
+    stop() {
+      clearInterval(pollTimer)
+      pollTimer = null
+      inFlight = null
+      session += 1
+      this.$reset()
     },
 
     /**
@@ -84,6 +116,7 @@ export const useImportsStore = defineStore('imports', {
     async submit(url) {
       const row = await submitYoutubeImport(url)
       this.list.unshift(row)
+      notify({ icon: 'schedule', message: YOUTUBE_COPY.toastQueued })
       this.syncPolling()
       return row
     },
@@ -107,9 +140,11 @@ export const useImportsStore = defineStore('imports', {
     async dismiss(id) {
       const snapshot = [...this.list]
       this.list = this.list.filter((item) => item.id !== id)
+      this.dismissedIds.push(id)
       try {
         await dismissImport(id)
       } catch (err) {
+        this.dismissedIds = this.dismissedIds.filter((dismissed) => dismissed !== id)
         this.list = snapshot
         throw err
       }
@@ -121,11 +156,13 @@ export const useImportsStore = defineStore('imports', {
      */
     async announceReady(rows) {
       if (!rows.length) return
+      const startedIn = session
       const library = useLibraryStore()
       const player = usePlayerStore()
       const tracks = (
         await Promise.all(rows.map((row) => getTrack(row.track_id).catch(() => null)))
       ).filter(Boolean)
+      if (startedIn !== session) return
 
       tracks.forEach((track) => {
         library.prependTrack(track)
