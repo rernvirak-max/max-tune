@@ -74,6 +74,14 @@ export async function uploadTrack(file, opts = {}) {
 /**
  * @param {number|string} id
  */
+export async function getTrack(id) {
+  const res = await engineAPI.get(`/tracks/${id}`)
+  return res?.data ?? res
+}
+
+/**
+ * @param {number|string} id
+ */
 export async function deleteTrack(id) {
   return engineAPI.delete(`/tracks/${id}`)
 }
