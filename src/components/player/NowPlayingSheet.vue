@@ -7,6 +7,7 @@
     @update:model-value="onToggle"
   >
     <q-card class="sheet column no-wrap" :class="{ mobile: $q.screen.lt.sm }">
+      <div v-if="player.coverUrl" class="sheet-art-bg" :style="artBackdrop" aria-hidden="true" />
       <div class="sheet-wash" aria-hidden="true" />
 
       <div class="sheet-top row items-center">
@@ -200,6 +201,8 @@ const repeatAria = computed(() => {
   return 'Repeat off'
 })
 
+const artBackdrop = computed(() => ({ backgroundImage: `url("${player.coverUrl}")` }))
+
 function onToggle(open) {
   if (!open) player.closeSheet()
 }
@@ -251,6 +254,7 @@ async function onLike() {
 
 <style scoped>
 .sheet {
+  --art-bg-blur: 56px;
   position: relative;
   width: min(480px, 100vw);
   max-height: 92vh;
@@ -267,6 +271,21 @@ async function onLike() {
   border-radius: 0;
   border: none;
   min-height: 100%;
+}
+
+.sheet-art-bg {
+  pointer-events: none;
+  position: absolute;
+  inset: calc(-1 * var(--art-bg-blur));
+  background-size: cover;
+  background-position: center;
+  filter: blur(var(--art-bg-blur)) saturate(1.4);
+  opacity: 0.35;
+  z-index: 0;
+}
+
+[data-theme='light'] .sheet-art-bg {
+  opacity: 0.25;
 }
 
 .sheet-wash {
@@ -311,8 +330,9 @@ async function onLike() {
 }
 
 .art {
+  --art-max: 360px;
   --art-max-viewport-height: 34vh;
-  width: min(72vw, 320px, var(--art-max-viewport-height));
+  width: min(72vw, var(--art-max), var(--art-max-viewport-height));
   aspect-ratio: 1;
   border-radius: 18px;
   overflow: hidden;

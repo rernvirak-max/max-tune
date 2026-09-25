@@ -215,6 +215,7 @@ async function onOfflineClick() {
 
 <style scoped>
 .track-row {
+  --tap-target: 44px;
   gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
@@ -343,6 +344,15 @@ async function onOfflineClick() {
 .mt-menu {
   background: var(--mt-bg-elevated);
   min-width: 200px;
+}
+
+@media (max-width: 599px) {
+  .like,
+  .play,
+  .more {
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
