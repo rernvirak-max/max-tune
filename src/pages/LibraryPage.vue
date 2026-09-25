@@ -49,11 +49,28 @@
       </button>
     </div>
 
-    <UploadDropzone
-      v-if="filterMode === 'all'"
-      class="q-mb-lg"
-      @uploaded="onUploaded"
-    />
+    <div
+      v-if="filterMode === 'all' && isOffline"
+      class="offline-card column items-center text-center q-mb-lg"
+      role="status"
+    >
+      <div class="offline-icon flex flex-center">
+        <q-icon :name="isBrowserOffline ? 'wifi_off' : 'cloud_off'" size="30px" />
+      </div>
+      <div class="offline-title">
+        {{ isBrowserOffline ? copy.empty.offlineTitle : copy.empty.unreachableTitle }}
+      </div>
+      <p class="offline-text">{{ copy.empty.offlineText }}</p>
+      <q-btn
+        unelevated
+        no-caps
+        class="offline-cta"
+        icon="download_done"
+        :label="copy.empty.showDownloads"
+        @click="setFilter('downloaded')"
+      />
+    </div>
+    <UploadDropzone v-else-if="filterMode === 'all'" class="q-mb-lg" @uploaded="onUploaded" />
 
     <div v-if="filterMode === 'all' && library.uploadProgress.length" class="progress q-mb-md">
       <div v-for="(item, i) in library.uploadProgress.slice(0, 5)" :key="i" class="prog-row">
@@ -86,10 +103,12 @@
 
     <template v-else>
       <div v-if="library.loading" class="state">Loading library...</div>
-      <div v-else-if="library.error && !library.tracks.length" class="state error">
-        {{ library.error }}
-      </div>
-      <div v-else-if="library.isEmpty" class="state muted">
+      <LoadError
+        v-else-if="library.error && !library.tracks.length"
+        :message="library.error"
+        @retry="loadLibrary"
+      />
+      <div v-else-if="library.isEmpty && !library.error && !isOffline" class="state muted">
         Drop a file above to start your collection.
       </div>
       <div v-else class="list">
@@ -114,6 +133,9 @@ import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import UploadDropzone from '@/components/library/UploadDropzone.vue'
 import TrackRow from '@/components/library/TrackRow.vue'
+import LoadError from '@/components/common/LoadError.vue'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useLibraryStore } from '@/stores/library-store'
@@ -131,7 +153,7 @@ const player = usePlayerStore()
 const playlists = usePlaylistStore()
 const likes = useLikesStore()
 const connectivity = useConnectivity()
-const { isOffline } = connectivity
+const { isOffline, isBrowserOffline } = connectivity
 const copy = OFFLINE_COPY
 const search = ref('')
 const filterMode = ref('all')
@@ -159,14 +181,35 @@ function syncFilterFromRoute() {
   filterMode.value = route.query.offline === '1' ? 'downloaded' : 'all'
 }
 
+function loadLibrary() {
+  return library
+    .fetchTracks()
+    .then(() => offline.backfillCovers(library.tracks))
+    .catch(() => {})
+}
+
 onMounted(() => {
   syncFilterFromRoute()
+  // Offline: land on Downloaded - the cloud library can't load anyway
+  if (isOffline.value && filterMode.value !== 'downloaded') setFilter('downloaded')
   offline.hydrate().catch(() => {})
-  library.fetchTracks().catch(() => {})
-  playlists.fetchPlaylists().catch(() => {})
+  if (!isBrowserOffline.value) {
+    loadLibrary()
+    playlists.fetchPlaylists().catch(() => {})
+  }
 })
 
 watch(() => route.query.offline, syncFilterFromRoute)
+
+// Connection dropped: switch to Downloaded. Back online: keep the user's choice,
+// just retry a library load that failed while offline.
+watch(isOffline, (nowOffline) => {
+  if (nowOffline) {
+    if (filterMode.value !== 'downloaded') setFilter('downloaded')
+  } else if (library.error || !library.tracks.length) {
+    loadLibrary()
+  }
+})
 
 function onSearch(value) {
   clearTimeout(searchTimer)
@@ -192,7 +235,7 @@ async function onLike(track) {
   try {
     await likes.toggle(track)
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Could not update like' })
+    $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.like) })
   }
 }
 
@@ -234,7 +277,11 @@ async function onAdd(track) {
       await playlists.addTrack(playlistId, track.id)
       $q.notify({ type: 'positive', message: 'Added to playlist', position: 'top' })
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Could not add', position: 'top' })
+      $q.notify({
+        type: 'negative',
+        message: toUserMessage(err, ERROR_COPY.action.addToPlaylist),
+        position: 'top',
+      })
     }
   })
 }
@@ -252,7 +299,7 @@ async function onRemove(track) {
       await library.removeTrack(track.id)
       if (player.currentTrack?.id === track.id) player.clear()
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Delete failed' })
+      $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.deleteTrack) })
     }
   })
 }
@@ -361,12 +408,45 @@ h1 {
   color: var(--mt-text-muted);
 }
 
-.state.error {
-  color: #ff8f8f;
-}
-
 .empty-dl {
   gap: 8px;
+}
+
+.offline-card {
+  gap: 8px;
+  padding: 28px 20px;
+  border: 1px dashed var(--mt-border);
+  border-radius: 16px;
+  background: var(--mt-bg-panel);
+}
+
+.offline-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  margin-bottom: 4px;
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent);
+}
+
+.offline-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--mt-text);
+}
+
+.offline-text {
+  margin: 0 0 8px;
+  color: var(--mt-text-muted);
+}
+
+.offline-cta {
+  background: var(--mt-accent);
+  color: var(--mt-bg);
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 4px 18px;
 }
 
 .art {

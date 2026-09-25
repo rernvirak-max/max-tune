@@ -8,7 +8,12 @@
       @click="player.openSheet()"
     >
       <div class="cover flex flex-center" :class="{ live: player.hasTrack }">
-        <img v-if="player.coverUrl" :src="player.coverUrl" alt="" />
+        <img
+          v-if="player.coverUrl && !isBrokenImage(player.coverUrl)"
+          :src="player.coverUrl"
+          alt=""
+          @error="markBrokenImage(player.coverUrl)"
+        />
         <q-icon v-else :name="player.hasTrack ? 'graphic_eq' : 'music_note'" size="22px" />
         <span
           v-if="player.currentTrack && offline.isDownloaded(player.currentTrack.id)"
@@ -138,6 +143,9 @@ import { useOfflineStore } from '@/stores/offline-store'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useLikesStore } from '@/stores/likes-store'
 import { formatDuration } from '@/helpers/mediaUrl'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 
 const $q = useQuasar()
 const player = usePlayerStore()
@@ -176,7 +184,7 @@ async function onLike() {
   try {
     await likes.toggle(player.currentTrack)
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Could not update like' })
+    $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.like) })
   }
 }
 </script>

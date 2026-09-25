@@ -53,11 +53,17 @@ export async function uploadTrack(file, opts = {}) {
         (typeof body === 'object' && body?.message) ||
         (typeof body === 'object' && body?.errors?.file?.[0]) ||
         `Upload failed (${xhr.status})`
-      reject(Object.assign(new Error(message), { status: xhr.status, body }))
+      // 4xx JSON copy from the engine (validation, quota) is user-facing; 5xx is not
+      const userMessage =
+        xhr.status >= 400 && xhr.status < 500 && typeof body === 'object'
+          ? body?.errors?.file?.[0] || body?.message || null
+          : null
+      reject(Object.assign(new Error(message), { status: xhr.status, body, userMessage }))
     }
 
-    xhr.onerror = () => reject(new Error('Network error during upload'))
-    xhr.ontimeout = () => reject(new Error('Upload timed out'))
+    xhr.onerror = () =>
+      reject(Object.assign(new Error('Network error during upload'), { network: true }))
+    xhr.ontimeout = () => reject(Object.assign(new Error('Upload timed out'), { network: true }))
     xhr.timeout = 5 * 60 * 1000
     xhr.send(form)
   })

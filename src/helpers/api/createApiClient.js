@@ -5,8 +5,8 @@
 
 export class ApiError extends Error {
   /**
-   * @param {number} status
-   * @param {string} message
+   * @param {number} status 0 = network failure (engine unreachable / offline)
+   * @param {string} message technical detail (console only)
    * @param {unknown} [body]
    */
   constructor(status, message, body) {
@@ -14,6 +14,16 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
     this.body = body
+    this.network = status === 0
+    /**
+     * Engine-authored JSON `message` for 4xx (validation, bad credentials…): safe to show.
+     * Never set for 5xx, HTML bodies or network failures.
+     * @type {string|null}
+     */
+    this.userMessage =
+      status >= 400 && status < 500 && typeof body === 'object' && typeof body?.message === 'string'
+        ? body.message
+        : null
   }
 }
 
@@ -73,11 +83,19 @@ export function createApiClient(baseURL, options = {}) {
     }
 
     const url = path.startsWith('http') ? path : `${root}${path}`
-    const response = await fetch(url, {
-      ...init,
-      headers,
-      credentials: withCredentials ? 'include' : 'same-origin',
-    })
+    let response
+    try {
+      response = await fetch(url, {
+        ...init,
+        headers,
+        credentials: withCredentials ? 'include' : 'same-origin',
+      })
+    } catch (err) {
+      // "Failed to fetch" / "Load failed": offline or engine unreachable
+      const error = new ApiError(0, err?.message || 'Network request failed')
+      error.cause = err
+      throw error
+    }
 
     if (!response.ok) {
       let body

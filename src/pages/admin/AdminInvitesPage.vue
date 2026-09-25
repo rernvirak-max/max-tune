@@ -71,6 +71,8 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Notify, Dialog } from 'quasar'
 import { engineAPI } from '@/helpers/api'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 import AdminTabs from '@/components/admin/AdminTabs.vue'
 
 const invites = ref([])
@@ -122,7 +124,10 @@ async function create() {
     Notify.create({ message: 'Invite created', color: 'dark', timeout: 2500 })
     await load()
   } catch (e) {
-    Notify.create({ message: e?.message || 'Could not create invite', color: 'negative' })
+    Notify.create({
+      message: toUserMessage(e, ERROR_COPY.action.createInvite),
+      color: 'negative',
+    })
   } finally {
     creating.value = false
   }
