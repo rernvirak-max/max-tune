@@ -3,6 +3,7 @@ import { engineAPI } from '@/helpers/api'
 import { ApiError } from '@/helpers/api/createApiClient'
 import { ERROR_COPY } from '@/constants/error-copy'
 import { toUserMessage } from '@/helpers/userError'
+import { useImportsStore } from '@/stores/imports-store'
 
 const TOKEN_KEY = 'max_tune_token'
 
@@ -134,6 +135,7 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.setToken(null)
         this.user = null
+        useImportsStore().stop()
       }
     },
   },

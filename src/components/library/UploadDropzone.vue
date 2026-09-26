@@ -92,6 +92,9 @@ function onBrowse() {
 function onZoneClick() {
   if (isOffline.value) connectivity.requireOnline()
 }
+
+// Library empty state opens the same file picker
+defineExpose({ browse: onBrowse })
 </script>
 
 <style scoped>

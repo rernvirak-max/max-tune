@@ -101,6 +101,11 @@ export const useLibraryStore = defineStore('library', {
       }
     },
 
+    /** Show a track created elsewhere (e.g. a finished YouTube import) at the top. */
+    prependTrack(track) {
+      if (!this.tracks.some((t) => t.id === track.id)) this.tracks.unshift(track)
+    },
+
     async removeTrack(id) {
       await deleteTrack(id)
       this.tracks = this.tracks.filter((t) => t.id !== id)

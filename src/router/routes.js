@@ -88,6 +88,12 @@ const routes = [
         meta: { requiresAdmin: true },
       },
       {
+        path: 'admin/youtube',
+        name: 'admin-youtube',
+        component: () => import('@/pages/admin/AdminYoutubePage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
         path: 'admin/denied',
         name: 'admin-denied',
         component: () => import('@/pages/admin/AdminDeniedPage.vue'),
