@@ -1,12 +1,13 @@
 <template>
   <div
     class="dropzone"
-    :class="{ active: dragging, busy: library.uploading, offline: isOffline }"
+    :class="{ active: dragging, busy: library.uploading || library.importing, offline: isOffline }"
     @dragenter.prevent="onEnter"
     @dragover.prevent="onEnter"
     @dragleave.prevent="onLeave"
     @drop.prevent="onDrop"
     @click="onZoneClick"
+    @paste="onPaste"
   >
     <input
       ref="inputEl"
@@ -23,9 +24,34 @@
         <q-icon :name="isOffline ? 'cloud_off' : 'upload_file'" size="32px" />
       </div>
       <div class="title">{{ isOffline ? 'Connect to upload' : 'Drop audio or click' }}</div>
-      <div class="sub">{{ isOffline ? copy.err.mutation : 'mp3 · m4a · flac · wav' }}</div>
+      <div class="sub">
+        {{ isOffline ? copy.err.mutation : 'mp3 · m4a · flac · wav · paste a YouTube link' }}
+      </div>
+      <div class="url-row row items-center q-gutter-sm">
+        <q-input
+          v-model="youtubeUrl"
+          dense
+          dark
+          outlined
+          clearable
+          class="url-input"
+          placeholder="Paste YouTube URL…"
+          :disable="isOffline || library.importing"
+          @keyup.enter.stop="onSubmitUrl"
+          @click.stop
+        />
+        <q-btn
+          class="browse"
+          unelevated
+          no-caps
+          label="Import"
+          :disable="isOffline || library.importing || !youtubeUrl.trim()"
+          :loading="library.importing"
+          @click.stop="onSubmitUrl"
+        />
+      </div>
       <q-btn
-        class="browse"
+        class="browse files"
         unelevated
         no-caps
         :label="isOffline ? copy.err.mutation : 'Choose files'"
@@ -38,17 +64,20 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { Notify } from 'quasar'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useLibraryStore } from '@/stores/library-store'
+import { extractYoutubeUrl } from '@/services/engine/youtube'
 
-const emit = defineEmits(['uploaded'])
+const emit = defineEmits(['uploaded', 'imported'])
 
 const library = useLibraryStore()
 const connectivity = useConnectivity()
 const copy = OFFLINE_COPY
 const inputEl = ref(null)
 const dragging = ref(false)
+const youtubeUrl = ref('')
 let dragDepth = 0
 
 const isOffline = computed(() => connectivity.isOffline.value)
@@ -72,12 +101,50 @@ async function handleFiles(files) {
   if (created.length) emit('uploaded', created)
 }
 
+async function importUrl(text) {
+  if (!connectivity.requireOnline()) return
+  try {
+    const item = await library.importYoutubeFromText(text)
+    if (!item) {
+      Notify.create({ type: 'negative', message: 'Paste a valid YouTube link', position: 'top' })
+      return
+    }
+    youtubeUrl.value = ''
+    emit('imported', item)
+    Notify.create({ type: 'positive', message: 'YouTube import queued', position: 'top' })
+  } catch (err) {
+    Notify.create({
+      type: 'negative',
+      message: err?.message || 'Could not queue YouTube import',
+      position: 'top',
+    })
+  }
+}
+
 function onDrop(event) {
   if (isOffline.value) {
     connectivity.requireOnline()
     return
   }
+  const uri = event.dataTransfer?.getData('text/uri-list') || event.dataTransfer?.getData('text')
+  if (extractYoutubeUrl(uri || '')) {
+    importUrl(uri)
+    dragging.value = false
+    dragDepth = 0
+    return
+  }
   handleFiles(event.dataTransfer?.files)
+}
+
+function onPaste(event) {
+  const text = event.clipboardData?.getData('text') || ''
+  if (!extractYoutubeUrl(text)) return
+  event.preventDefault()
+  importUrl(text)
+}
+
+function onSubmitUrl() {
+  importUrl(youtubeUrl.value)
 }
 
 function onPick(event) {
@@ -117,7 +184,6 @@ function onZoneClick() {
 
 .dropzone.busy {
   opacity: 0.75;
-  pointer-events: none;
 }
 
 .dropzone.offline {
@@ -149,12 +215,26 @@ function onZoneClick() {
   font-size: 0.9rem;
 }
 
+.url-row {
+  margin-top: 16px;
+  width: min(520px, 100%);
+  justify-content: center;
+}
+
+.url-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .browse {
-  margin-top: 18px;
   background: var(--mt-text) !important;
   color: #07080c !important;
   border-radius: 999px;
   padding: 0 18px;
   font-weight: 600;
+}
+
+.browse.files {
+  margin-top: 14px;
 }
 </style>

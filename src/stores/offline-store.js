@@ -40,8 +40,8 @@ export function isTrackDownloadable(track) {
     // fall through
   }
 
-  // Stored uploads always have size + mime from engine
-  if (track.import_mode === 'stored' || track.source === 'upload') {
+  // Stored uploads / YouTube imports always have size + mime from engine
+  if (track.import_mode === 'stored' || track.source === 'upload' || track.source === 'youtube') {
     return Boolean(stream)
   }
 

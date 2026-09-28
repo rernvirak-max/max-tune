@@ -1,5 +1,18 @@
 import { defineStore } from 'pinia'
 import { deleteTrack, listTracks, uploadTrack } from '@/services/engine/tracks'
+import {
+  cancelYoutubeImport,
+  createYoutubeImport,
+  extractYoutubeUrl,
+  listYoutubeImports,
+} from '@/services/engine/youtube'
+
+const ACTIVE_IMPORT_STATUSES = new Set([
+  'queued',
+  'waiting_for_metadata',
+  'downloading',
+  'processing',
+])
 
 export const useLibraryStore = defineStore('library', {
   state: () => ({
@@ -8,13 +21,17 @@ export const useLibraryStore = defineStore('library', {
     loading: false,
     uploading: false,
     uploadProgress: [],
+    imports: [],
+    importing: false,
     error: null,
     query: '',
+    _importPollTimer: null,
   }),
 
   getters: {
     isEmpty: (state) => !state.loading && state.tracks.length === 0,
     trackCount: (state) => state.tracks.length,
+    activeImports: (state) => state.imports.filter((item) => ACTIVE_IMPORT_STATUSES.has(item.status)),
   },
 
   actions: {
@@ -32,6 +49,70 @@ export const useLibraryStore = defineStore('library', {
       } finally {
         this.loading = false
       }
+    },
+
+    async fetchImports() {
+      try {
+        const data = await listYoutubeImports()
+        this.imports = data.data || []
+        this.ensureImportPolling()
+      } catch {
+        // Keep library usable if imports endpoint is unavailable
+      }
+    },
+
+    ensureImportPolling() {
+      if (typeof window === 'undefined') return
+      const needsPoll = this.imports.some((item) => ACTIVE_IMPORT_STATUSES.has(item.status))
+      if (!needsPoll) {
+        if (this._importPollTimer) {
+          clearInterval(this._importPollTimer)
+          this._importPollTimer = null
+        }
+        return
+      }
+      if (this._importPollTimer) return
+      this._importPollTimer = setInterval(() => {
+        this.pollImports()
+      }, 2500)
+    },
+
+    async pollImports() {
+      const before = this.imports.map((i) => `${i.id}:${i.status}`).join('|')
+      await this.fetchImports()
+      const after = this.imports.map((i) => `${i.id}:${i.status}`).join('|')
+      const finished = this.imports.some((i) => i.status === 'done')
+      if (finished && before !== after) {
+        await this.fetchTracks().catch(() => {})
+      }
+    },
+
+    /**
+     * @param {string} text
+     * @returns {Promise<object|null>}
+     */
+    async importYoutubeFromText(text) {
+      const url = extractYoutubeUrl(text)
+      if (!url) return null
+      this.importing = true
+      try {
+        const item = await createYoutubeImport(url)
+        this.imports = [item, ...this.imports.filter((i) => i.id !== item.id)]
+        this.ensureImportPolling()
+        return item
+      } finally {
+        this.importing = false
+      }
+    },
+
+    async cancelImport(id) {
+      await cancelYoutubeImport(id)
+      this.imports = this.imports.map((item) =>
+        item.id === id
+          ? { ...item, status: 'cancelled', status_message: 'Cancelled' }
+          : item,
+      )
+      this.ensureImportPolling()
     },
 
     /**

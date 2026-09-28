@@ -53,7 +53,46 @@
       v-if="filterMode === 'all'"
       class="q-mb-lg"
       @uploaded="onUploaded"
+      @imported="onImported"
     />
+
+    <div
+      v-if="filterMode === 'all' && visibleImports.length"
+      class="imports q-mb-md"
+    >
+      <div class="imports-head row items-center justify-between">
+        <div class="imports-title">Imports</div>
+        <div class="imports-hint">You can leave this page. We'll keep going.</div>
+      </div>
+      <div
+        v-for="item in visibleImports"
+        :key="item.id"
+        class="import-row"
+      >
+        <div class="import-icon flex flex-center">
+          <q-icon name="link" size="18px" />
+        </div>
+        <div class="import-body min-width-0">
+          <div class="import-url ellipsis">{{ item.title || item.url }}</div>
+          <div class="import-status">
+            {{ importStatusLabel(item) }}
+            <span v-if="item.error_message" class="import-error"> · {{ item.error_message }}</span>
+          </div>
+        </div>
+        <div class="import-badge">
+          <q-icon name="schedule" size="14px" />
+          {{ importBadgeLabel(item) }}
+        </div>
+        <button
+          type="button"
+          class="import-cancel"
+          aria-label="Cancel import"
+          @click="onCancelImport(item)"
+        >
+          <q-icon name="close" size="18px" />
+        </button>
+      </div>
+    </div>
 
     <div v-if="filterMode === 'all' && library.uploadProgress.length" class="progress q-mb-md">
       <div v-for="(item, i) in library.uploadProgress.slice(0, 5)" :key="i" class="prog-row">
@@ -163,10 +202,17 @@ onMounted(() => {
   syncFilterFromRoute()
   offline.hydrate().catch(() => {})
   library.fetchTracks().catch(() => {})
+  library.fetchImports().catch(() => {})
   playlists.fetchPlaylists().catch(() => {})
 })
 
 watch(() => route.query.offline, syncFilterFromRoute)
+
+const visibleImports = computed(() =>
+  library.imports.filter((item) =>
+    ['queued', 'waiting_for_metadata', 'downloading', 'processing', 'failed'].includes(item.status),
+  ),
+)
 
 function onSearch(value) {
   clearTimeout(searchTimer)
@@ -177,6 +223,32 @@ function onSearch(value) {
 
 function onUploaded() {
   $q.notify({ type: 'positive', message: 'Upload complete', position: 'top' })
+}
+
+function onImported() {
+  // Queue UI handles feedback; keep library ready for completion poll
+}
+
+async function onCancelImport(item) {
+  try {
+    await library.cancelImport(item.id)
+  } catch (err) {
+    $q.notify({ type: 'negative', message: err?.message || 'Could not cancel import' })
+  }
+}
+
+function importStatusLabel(item) {
+  if (item.status === 'waiting_for_metadata') return 'Waiting for metadata'
+  if (item.status === 'downloading') return 'Downloading audio'
+  if (item.status === 'processing') return 'Adding to library'
+  if (item.status === 'failed') return 'Failed'
+  return item.status_message || 'Queued'
+}
+
+function importBadgeLabel(item) {
+  if (item.status === 'failed') return 'Failed'
+  if (item.status === 'downloading' || item.status === 'processing') return 'Working'
+  return 'Queued'
 }
 
 function onPlay(index) {
@@ -334,6 +406,91 @@ h1 {
   border-radius: 12px;
   padding: 10px 14px;
   background: var(--mt-bg-panel);
+}
+
+.imports {
+  border: 1px solid var(--mt-border);
+  border-radius: 16px;
+  padding: 14px 14px 8px;
+  background: var(--mt-bg-panel);
+}
+
+.imports-head {
+  margin-bottom: 10px;
+  gap: 12px;
+}
+
+.imports-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--mt-accent);
+}
+
+.imports-hint {
+  color: var(--mt-text-muted);
+  font-size: 0.82rem;
+}
+
+.import-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto 32px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.import-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(61, 255, 181, 0.08);
+  color: var(--mt-accent);
+}
+
+.import-url {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.import-status {
+  margin-top: 2px;
+  color: var(--mt-text-muted);
+  font-size: 0.8rem;
+}
+
+.import-error {
+  color: #ff8f8f;
+}
+
+.import-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--mt-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.import-cancel {
+  border: 0;
+  background: transparent;
+  color: var(--mt-text-muted);
+  cursor: pointer;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+}
+
+.import-cancel:hover {
+  color: #ff8f8f;
+  background: rgba(255, 143, 143, 0.08);
 }
 
 .prog-row {
