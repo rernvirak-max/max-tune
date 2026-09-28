@@ -79,6 +79,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Notify } from 'quasar'
 import { useAuthStore } from '@/stores/auth-store'
 import { ApiError } from '@/helpers/api'
+import { ERROR_COPY } from '@/constants/error-copy'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -123,8 +124,8 @@ async function onSubmit() {
       errors?.invite_code?.[0] ||
       errors?.email?.[0] ||
       errors?.password?.[0] ||
-      err?.message ||
-      "Couldn't create account"
+      auth.error ||
+      ERROR_COPY.auth.register
   }
 }
 </script>

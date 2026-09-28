@@ -41,6 +41,10 @@ export const OFFLINE_COPY = Object.freeze({
     downloadedOnline: 'Nothing downloaded yet',
     downloadedHint: 'Make tracks available from a row or playlist',
     downloadedOffline: 'No offline tracks on this device',
+    offlineTitle: 'You’re offline',
+    unreachableTitle: 'Can’t reach MaxTune',
+    offlineText: 'Your downloaded songs are still here.',
+    showDownloads: 'Show downloads',
   }),
   settings: Object.freeze({
     wifiOnly: 'Wi‑Fi only downloads',
@@ -51,8 +55,7 @@ export const OFFLINE_COPY = Object.freeze({
     manage: 'Manage downloads',
     removeAll: 'Remove all downloads',
     removeAllTitle: 'Remove all downloads?',
-    removeAllBody:
-      'Deletes offline audio on this device. Your library in the cloud is unchanged.',
+    removeAllBody: 'Deletes offline audio on this device. Your library in the cloud is unchanged.',
     iosNote:
       'iOS Safari / PWA: offline storage and background download are best-effort and may be cleared by the system. Android Chrome and desktop Chromium are the dogfood targets.',
   }),

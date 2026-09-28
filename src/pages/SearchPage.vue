@@ -6,20 +6,10 @@
     </header>
 
     <div class="tabs row q-gutter-sm q-mb-md">
-      <button
-        type="button"
-        class="tab"
-        :class="{ on: tab === 'library' }"
-        @click="tab = 'library'"
-      >
+      <button type="button" class="tab" :class="{ on: tab === 'library' }" @click="tab = 'library'">
         Library
       </button>
-      <button
-        type="button"
-        class="tab"
-        :class="{ on: tab === 'catalog' }"
-        @click="tab = 'catalog'"
-      >
+      <button type="button" class="tab" :class="{ on: tab === 'catalog' }" @click="tab = 'catalog'">
         Jamendo
       </button>
     </div>
@@ -36,7 +26,7 @@
     </div>
 
     <div v-if="loading" class="state">Searching…</div>
-    <div v-else-if="error" class="state error">{{ error }}</div>
+    <LoadError v-else-if="error" :message="error" @retry="runSearch" />
     <div v-else-if="searched && !results.length" class="state">No matches.</div>
 
     <div v-else-if="tab === 'library' && results.length" class="list">
@@ -55,7 +45,12 @@
     <div v-else-if="tab === 'catalog' && results.length" class="list">
       <div v-for="item in results" :key="item.external_id" class="catalog-row row items-center">
         <div class="cover flex flex-center">
-          <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" />
+          <img
+            v-if="item.cover_url && !isBrokenImage(item.cover_url)"
+            :src="item.cover_url"
+            alt=""
+            @error="markBrokenImage(item.cover_url)"
+          />
           <q-icon v-else name="music_note" size="22px" />
         </div>
         <div class="meta col ellipsis">
@@ -94,7 +89,11 @@ import { ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import TrackRow from '@/components/library/TrackRow.vue'
+import LoadError from '@/components/common/LoadError.vue'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
 import { formatDuration } from '@/helpers/mediaUrl'
+import { toUserMessage } from '@/helpers/userError'
 import { importJamendoTrack, searchJamendo } from '@/services/engine/catalog'
 import { listTracks } from '@/services/engine/tracks'
 import { useLibraryStore } from '@/stores/library-store'
@@ -154,7 +153,10 @@ async function runSearch() {
     }
   } catch (err) {
     results.value = []
-    error.value = err?.message || 'Search failed'
+    error.value = toUserMessage(err, ERROR_COPY.load.search, {
+      context: 'search',
+      allowServerMessage: false,
+    })
   } finally {
     loading.value = false
   }
@@ -186,7 +188,11 @@ async function importItem(item) {
     library.tracks.unshift(track)
     $q.notify({ type: 'positive', message: 'Added to library', position: 'top' })
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Import failed', position: 'top' })
+    $q.notify({
+      type: 'negative',
+      message: toUserMessage(err, ERROR_COPY.action.importTrack),
+      position: 'top',
+    })
   } finally {
     importingId.value = null
   }
@@ -196,7 +202,7 @@ async function onLike(track) {
   try {
     await likes.toggle(track)
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Could not update like' })
+    $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.like) })
   }
 }
 
@@ -230,7 +236,7 @@ async function onAdd(track) {
       await playlists.addTrack(playlistId, track.id)
       $q.notify({ type: 'positive', message: 'Added to playlist', position: 'top' })
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Could not add' })
+      $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.addToPlaylist) })
     }
   })
 }
@@ -247,7 +253,7 @@ async function onRemove(track) {
       results.value = results.value.filter((t) => t.id !== track.id)
       if (player.currentTrack?.id === track.id) player.clear()
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Delete failed' })
+      $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.deleteTrack) })
     }
   })
 }
@@ -331,10 +337,6 @@ h1 {
 .state {
   padding: 20px 8px;
   color: var(--mt-text-muted);
-}
-
-.state.error {
-  color: #ff8f8f;
 }
 
 .list {

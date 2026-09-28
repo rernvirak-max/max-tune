@@ -6,7 +6,8 @@
     transition-hide="slide-down"
     @update:model-value="onToggle"
   >
-    <q-card class="sheet column" :class="{ mobile: $q.screen.lt.sm }">
+    <q-card class="sheet column no-wrap" :class="{ mobile: $q.screen.lt.sm }">
+      <div v-if="hasCover" class="sheet-art-bg" :style="artBackdrop" aria-hidden="true" />
       <div class="sheet-wash" aria-hidden="true" />
 
       <div class="sheet-top row items-center">
@@ -23,15 +24,20 @@
         <div style="width: 40px" />
       </div>
 
-      <div class="sheet-body column items-center col">
+      <div class="sheet-body column no-wrap items-center col">
         <div class="art flex flex-center" :class="{ live: player.hasTrack }">
-          <img v-if="player.coverUrl" :src="player.coverUrl" alt="" />
+          <img
+            v-if="hasCover"
+            :src="player.coverUrl"
+            alt=""
+            @error="markBrokenImage(player.coverUrl)"
+          />
           <q-icon v-else name="album" size="64px" />
         </div>
 
         <div class="meta text-center">
-          <div class="title">{{ player.displayTitle }}</div>
-          <div class="artist">{{ player.displayArtist }}</div>
+          <div class="title ellipsis">{{ player.displayTitle }}</div>
+          <div class="artist ellipsis">{{ player.displayArtist }}</div>
         </div>
 
         <div class="scrub row items-center full-width">
@@ -54,7 +60,19 @@
         </div>
 
         <div class="transport row items-center justify-center q-gutter-md">
-          <q-btn flat round dense icon="shuffle" disable class="ghost" size="sm" aria-label="Shuffle (unavailable)" />
+          <q-btn
+            flat
+            round
+            dense
+            icon="shuffle"
+            class="ghost"
+            :class="{ on: player.shuffle }"
+            size="sm"
+            :aria-label="player.shuffle ? 'Disable shuffle' : 'Enable shuffle'"
+            :aria-pressed="player.shuffle ? 'true' : 'false'"
+            :disable="!player.hasTrack || player.queue.length < 2"
+            @click="player.toggleShuffle()"
+          />
           <q-btn
             flat
             round
@@ -79,10 +97,20 @@
             icon="skip_next"
             class="ghost"
             aria-label="Next track"
-            :disable="!player.hasTrack || player.queue.length < 2"
+            :disable="!player.hasTrack || (player.queue.length < 2 && player.repeat !== 'all')"
             @click="player.playNext()"
           />
-          <q-btn flat round dense icon="repeat" disable class="ghost" size="sm" aria-label="Repeat (unavailable)" />
+          <q-btn
+            flat
+            round
+            dense
+            :icon="player.repeat === 'one' ? 'repeat_one' : 'repeat'"
+            class="ghost"
+            :class="{ on: player.repeat !== 'off' }"
+            size="sm"
+            :aria-label="repeatAria"
+            @click="player.cycleRepeat()"
+          />
         </div>
 
         <div class="extras row items-center justify-between full-width">
@@ -111,7 +139,6 @@
             />
           </div>
         </div>
-
 
         <div v-if="player.hasTrack" class="offline-actions row justify-center">
           <q-btn
@@ -157,6 +184,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { usePlayerStore } from '@/stores/player-store'
 import { useOfflineStore } from '@/stores/offline-store'
@@ -164,6 +192,9 @@ import { OFFLINE_COPY } from '@/constants/offline-copy'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useLikesStore } from '@/stores/likes-store'
 import { formatDuration } from '@/helpers/mediaUrl'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 
 const $q = useQuasar()
 const player = usePlayerStore()
@@ -171,6 +202,15 @@ const offline = useOfflineStore()
 const copy = OFFLINE_COPY
 const connectivity = useConnectivity()
 const likes = useLikesStore()
+
+const repeatAria = computed(() => {
+  if (player.repeat === 'one') return 'Repeat one'
+  if (player.repeat === 'all') return 'Repeat all'
+  return 'Repeat off'
+})
+
+const hasCover = computed(() => Boolean(player.coverUrl) && !isBrokenImage(player.coverUrl))
+const artBackdrop = computed(() => ({ backgroundImage: `url("${player.coverUrl}")` }))
 
 function onToggle(open) {
   if (!open) player.closeSheet()
@@ -190,7 +230,6 @@ function nudge(deltaPct) {
 function onVolume(event) {
   player.setVolume(Number(event.target.value))
 }
-
 
 async function onOfflineToggle() {
   const track = player.currentTrack
@@ -217,13 +256,14 @@ async function onLike() {
   try {
     await likes.toggle(player.currentTrack)
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Could not update like' })
+    $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.like) })
   }
 }
 </script>
 
 <style scoped>
 .sheet {
+  --art-bg-blur: 56px;
   position: relative;
   width: min(480px, 100vw);
   max-height: 92vh;
@@ -240,6 +280,21 @@ async function onLike() {
   border-radius: 0;
   border: none;
   min-height: 100%;
+}
+
+.sheet-art-bg {
+  pointer-events: none;
+  position: absolute;
+  inset: calc(-1 * var(--art-bg-blur));
+  background-size: cover;
+  background-position: center;
+  filter: blur(var(--art-bg-blur)) saturate(1.4);
+  opacity: 0.35;
+  z-index: 0;
+}
+
+[data-theme='light'] .sheet-art-bg {
+  opacity: 0.25;
 }
 
 .sheet-wash {
@@ -279,10 +334,14 @@ async function onLike() {
 .sheet-body {
   padding: 12px 28px 32px;
   gap: 22px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .art {
-  width: min(72vw, 320px);
+  --art-max: 360px;
+  --art-max-viewport-height: 34vh;
+  width: min(72vw, var(--art-max), var(--art-max-viewport-height));
   aspect-ratio: 1;
   border-radius: 18px;
   overflow: hidden;
@@ -373,6 +432,10 @@ async function onLike() {
   color: var(--mt-text-muted) !important;
 }
 
+.ghost.on {
+  color: var(--mt-accent) !important;
+}
+
 .ghost-icon {
   color: var(--mt-text-muted);
 }
@@ -392,6 +455,7 @@ async function onLike() {
 
 .err {
   font-size: 0.75rem;
+  overflow-wrap: anywhere;
   color: #ff8f8f;
 }
 
@@ -417,5 +481,4 @@ async function onLike() {
 .offline-btn.dim {
   opacity: 0.5;
 }
-
 </style>

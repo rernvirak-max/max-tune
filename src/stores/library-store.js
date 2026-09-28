@@ -1,18 +1,11 @@
 import { defineStore } from 'pinia'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 import { deleteTrack, listTracks, uploadTrack } from '@/services/engine/tracks'
-import {
-  cancelYoutubeImport,
-  createYoutubeImport,
-  extractYoutubeUrl,
-  listYoutubeImports,
-} from '@/services/engine/youtube'
 
-const ACTIVE_IMPORT_STATUSES = new Set([
-  'queued',
-  'waiting_for_metadata',
-  'downloading',
-  'processing',
-])
+/** Files uploaded at once; overlaps transfer latency without flooding the engine */
+const UPLOAD_CONCURRENCY = 3
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 export const useLibraryStore = defineStore('library', {
   state: () => ({
@@ -21,17 +14,13 @@ export const useLibraryStore = defineStore('library', {
     loading: false,
     uploading: false,
     uploadProgress: [],
-    imports: [],
-    importing: false,
     error: null,
     query: '',
-    _importPollTimer: null,
   }),
 
   getters: {
     isEmpty: (state) => !state.loading && state.tracks.length === 0,
     trackCount: (state) => state.tracks.length,
-    activeImports: (state) => state.imports.filter((item) => ACTIVE_IMPORT_STATUSES.has(item.status)),
   },
 
   actions: {
@@ -44,113 +33,77 @@ export const useLibraryStore = defineStore('library', {
         this.tracks = data.data || []
         this.meta = data.meta || null
       } catch (err) {
-        this.error = err?.message || 'Failed to load library'
+        this.error = toUserMessage(err, ERROR_COPY.load.library, {
+          context: 'library load',
+          allowServerMessage: false,
+        })
         throw err
       } finally {
         this.loading = false
       }
     },
 
-    async fetchImports() {
-      try {
-        const data = await listYoutubeImports()
-        this.imports = data.data || []
-        this.ensureImportPolling()
-      } catch {
-        // Keep library usable if imports endpoint is unavailable
-      }
-    },
-
-    ensureImportPolling() {
-      if (typeof window === 'undefined') return
-      const needsPoll = this.imports.some((item) => ACTIVE_IMPORT_STATUSES.has(item.status))
-      if (!needsPoll) {
-        if (this._importPollTimer) {
-          clearInterval(this._importPollTimer)
-          this._importPollTimer = null
-        }
-        return
-      }
-      if (this._importPollTimer) return
-      this._importPollTimer = setInterval(() => {
-        this.pollImports()
-      }, 2500)
-    },
-
-    async pollImports() {
-      const before = this.imports.map((i) => `${i.id}:${i.status}`).join('|')
-      await this.fetchImports()
-      const after = this.imports.map((i) => `${i.id}:${i.status}`).join('|')
-      const finished = this.imports.some((i) => i.status === 'done')
-      if (finished && before !== after) {
-        await this.fetchTracks().catch(() => {})
-      }
-    },
-
-    /**
-     * @param {string} text
-     * @returns {Promise<object|null>}
-     */
-    async importYoutubeFromText(text) {
-      const url = extractYoutubeUrl(text)
-      if (!url) return null
-      this.importing = true
-      try {
-        const item = await createYoutubeImport(url)
-        this.imports = [item, ...this.imports.filter((i) => i.id !== item.id)]
-        this.ensureImportPolling()
-        return item
-      } finally {
-        this.importing = false
-      }
-    },
-
-    async cancelImport(id) {
-      await cancelYoutubeImport(id)
-      this.imports = this.imports.map((item) =>
-        item.id === id
-          ? { ...item, status: 'cancelled', status_message: 'Cancelled' }
-          : item,
-      )
-      this.ensureImportPolling()
-    },
-
     /**
      * @param {FileList|File[]} files
      */
     async uploadFiles(files) {
-      const list = Array.from(files || [])
-      if (!list.length) return []
+      const queue = Array.from(files || [])
+      if (!queue.length) return []
 
       this.uploading = true
       this.error = null
       const created = []
 
-      for (const file of list) {
-        const item = { name: file.name, status: 'uploading', error: null, pct: 0 }
-        this.uploadProgress.unshift(item)
-        try {
-          if (file.size > 50 * 1024 * 1024) {
-            throw new Error('File exceeds 50 MB limit')
-          }
-          const track = await uploadTrack(file, {
-            onProgress: (pct) => {
-              item.pct = pct
-            },
-          })
-          item.status = 'done'
-          item.pct = 100
-          created.push(track)
-          this.tracks.unshift(track)
-        } catch (err) {
-          item.status = 'error'
-          item.error = err?.message || 'Upload failed'
-          this.error = item.error
+      const worker = async () => {
+        for (let file = queue.shift(); file; file = queue.shift()) {
+          const track = await this.uploadFile(file)
+          if (track) created.push(track)
         }
       }
+      const workerCount = Math.min(UPLOAD_CONCURRENCY, queue.length)
+      await Promise.all(Array.from({ length: workerCount }, worker))
 
       this.uploading = false
       return created
+    },
+
+    /**
+     * Upload one file, tracking its progress row. Resolves to the track, or null on failure.
+     * @param {File} file
+     */
+    async uploadFile(file) {
+      this.uploadProgress.unshift({ name: file.name, status: 'uploading', error: null, pct: 0 })
+      // Reactive row (not the raw object) so progress re-renders while uploads overlap
+      const item = this.uploadProgress[0]
+      try {
+        if (file.size > MAX_UPLOAD_BYTES) {
+          throw Object.assign(new Error('File exceeds 50 MB limit'), {
+            userMessage: 'File exceeds 50 MB limit',
+          })
+        }
+        const track = await uploadTrack(file, {
+          onProgress: (pct) => {
+            item.pct = pct
+          },
+        })
+        item.status = 'done'
+        item.pct = 100
+        this.tracks.unshift(track)
+        return track
+      } catch (err) {
+        item.status = 'error'
+        item.error = toUserMessage(err, ERROR_COPY.action.upload, {
+          context: 'upload',
+          network: ERROR_COPY.action.uploadNetwork,
+        })
+        this.error = item.error
+        return null
+      }
+    },
+
+    /** Show a track created elsewhere (e.g. a finished YouTube import) at the top. */
+    prependTrack(track) {
+      if (!this.tracks.some((t) => t.id === track.id)) this.tracks.unshift(track)
     },
 
     async removeTrack(id) {

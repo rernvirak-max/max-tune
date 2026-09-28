@@ -1,0 +1,15 @@
+# Nixpacks config for Coolify deploys.
+#
+# @quasar/app-vite 3.10+ requires Node ^22.22.0 || ^24 || ^26. The nixpkgs
+# archive bundled with Coolify's Nixpacks image (23f9169c…) only ships
+# Node 22.19.0, so `quasar prepare` (postinstall) fails.
+#
+# Pin a newer nixpkgs (nixos-25.11 channel head, fully cached on
+# cache.nixos.org) and use its nodejs_24 (24.18.0, bundles npm 11).
+# Listing nixPkgs explicitly (without "...") replaces the provider's
+# `nodejs_22` + `npm-9_x`, so NIXPACKS_NODE_VERSION no longer has any effect.
+
+[phases.setup]
+nixPkgs = ['nodejs_24']
+nixOverlays = []
+nixpkgsArchive = 'b6018f87da91d19d0ab4cf979885689b469cdd41'

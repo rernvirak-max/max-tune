@@ -1,7 +1,8 @@
 <template>
   <q-page class="mt-page page">
     <div v-if="store.detailLoading" class="state">Loading...</div>
-    <div v-else-if="!playlist" class="state error">{{ store.error || 'Playlist not found' }}</div>
+    <LoadError v-else-if="!playlist && store.error" :message="store.error" @retry="load" />
+    <div v-else-if="!playlist" class="state">Playlist not found</div>
     <template v-else>
       <header class="head">
         <q-btn
@@ -13,9 +14,14 @@
           class="back"
           :to="{ name: 'playlists' }"
         />
-        <div class="hero row items-end q-gutter-lg">
+        <div class="hero row no-wrap items-end">
           <div class="cover flex flex-center">
-            <img v-if="coverSrc" :src="coverSrc" :alt="playlist.title" />
+            <img
+              v-if="coverSrc && !isBrokenImage(coverSrc)"
+              :src="coverSrc"
+              alt=""
+              @error="markBrokenImage(coverSrc)"
+            />
             <q-icon v-else name="queue_music" size="48px" />
           </div>
           <div class="col">
@@ -109,14 +115,14 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import TrackRow from '@/components/library/TrackRow.vue'
+import LoadError from '@/components/common/LoadError.vue'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
 import { toEngineProxyUrl } from '@/helpers/mediaUrl'
+import { toUserMessage } from '@/helpers/userError'
 import { useConnectivity } from '@/composables/useConnectivity'
-import {
-  formatStorageBytes,
-  isTrackDownloadable,
-  useOfflineStore,
-} from '@/stores/offline-store'
+import { formatStorageBytes, isTrackDownloadable, useOfflineStore } from '@/stores/offline-store'
 import { usePlaylistStore } from '@/stores/playlist-store'
 import { usePlayerStore } from '@/stores/player-store'
 import { useLikesStore } from '@/stores/likes-store'
@@ -142,7 +148,9 @@ const sizeAbout = computed(() => {
   if (!tracks.value.length) return ''
   const downloadable = tracks.value.filter(isTrackDownloadable)
   if (!downloadable.length) return ''
-  return copy.state.sizeAbout(formatStorageBytes(aboutBytes.value || downloadable.reduce((s, t) => s + (t.size || 0), 0)))
+  return copy.state.sizeAbout(
+    formatStorageBytes(aboutBytes.value || downloadable.reduce((s, t) => s + (t.size || 0), 0)),
+  )
 })
 
 const job = computed(() => {
@@ -164,9 +172,7 @@ const allDownloadableCached = computed(() => {
   return dl.every((t) => offline.isDownloaded(t.id))
 })
 
-const hasAnyDownloads = computed(() =>
-  tracks.value.some((t) => offline.isDownloaded(t.id)),
-)
+const hasAnyDownloads = computed(() => tracks.value.some((t) => offline.isDownloaded(t.id)))
 
 const playlistDownloadIcon = computed(() =>
   allDownloadableCached.value ? 'download_done' : 'download',
@@ -187,8 +193,9 @@ const skipSummary = computed(() => {
 })
 
 async function load() {
-  await store.fetchPlaylist(route.params.id)
   offline.hydrate().catch(() => {})
+  // Failure is rendered from store.error (friendly copy); nothing to rethrow
+  await store.fetchPlaylist(route.params.id).catch(() => {})
 }
 
 onMounted(load)
@@ -213,7 +220,8 @@ async function onDownloadPlaylist() {
 function onRemoveDownloads() {
   $q.dialog({
     title: 'Remove downloads?',
-    message: 'Deletes offline audio for tracks in this playlist on this device. Cloud library unchanged.',
+    message:
+      'Deletes offline audio for tracks in this playlist on this device. Cloud library unchanged.',
     cancel: true,
     persistent: true,
     dark: true,
@@ -230,7 +238,7 @@ async function onLike(track) {
   try {
     await likes.toggle(track)
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Could not update like' })
+    $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.like) })
   }
 }
 
@@ -254,7 +262,7 @@ function rename() {
     try {
       await store.update(playlist.value.id, { title: trimmed })
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Rename failed' })
+      $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.renamePlaylist) })
     }
   })
 }
@@ -273,7 +281,7 @@ function remove() {
       await store.remove(playlist.value.id)
       router.push({ name: 'playlists' })
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Delete failed' })
+      $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.deletePlaylist) })
     }
   })
 }
@@ -289,7 +297,10 @@ function onDetach(track) {
     try {
       await store.removeTrack(playlist.value.id, track.id)
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Remove failed' })
+      $q.notify({
+        type: 'negative',
+        message: toUserMessage(err, ERROR_COPY.action.removeFromPlaylist),
+      })
     }
   })
 }
@@ -313,7 +324,15 @@ function onDetach(track) {
 }
 
 .hero {
+  gap: 24px;
   margin-bottom: 28px;
+}
+
+@media (max-width: 599px) {
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .cover {
@@ -351,6 +370,8 @@ function onDetach(track) {
 h1 {
   margin: 6px 0 0;
   font-size: clamp(1.8rem, 4vw, 2.8rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .desc,
@@ -404,10 +425,6 @@ h1 {
 .empty {
   padding: 28px 8px;
   color: var(--mt-text-muted);
-}
-
-.state.error {
-  color: #ff8f8f;
 }
 
 .list {

@@ -19,10 +19,12 @@
     </header>
 
     <div v-if="store.loading" class="state">Loading liked songs…</div>
-    <div v-else-if="store.error && !store.tracks.length" class="state error">
-      {{ store.error }}
-    </div>
-    <div v-else-if="store.isEmpty" class="empty column items-center text-center">
+    <LoadError
+      v-else-if="store.error && !store.tracks.length"
+      :message="store.error"
+      @retry="load"
+    />
+    <div v-else-if="store.isEmpty && !store.error" class="empty column items-center text-center">
       <div class="mt-empty-art art" />
       <h2 class="mt-display">Nothing liked yet</h2>
       <p>Tap the heart on any track in your library.</p>
@@ -44,6 +46,9 @@
 import { onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import TrackRow from '@/components/library/TrackRow.vue'
+import LoadError from '@/components/common/LoadError.vue'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useLikesStore } from '@/stores/likes-store'
 import { usePlayerStore } from '@/stores/player-store'
@@ -53,9 +58,11 @@ const store = useLikesStore()
 const player = usePlayerStore()
 const connectivity = useConnectivity()
 
-onMounted(() => {
+function load() {
   store.fetchLiked().catch(() => {})
-})
+}
+
+onMounted(load)
 
 function playAll() {
   player.playQueue(store.tracks, 0)
@@ -70,7 +77,7 @@ async function onLike(track) {
   try {
     await store.toggle(track)
   } catch (err) {
-    $q.notify({ type: 'negative', message: err?.message || 'Could not update like' })
+    $q.notify({ type: 'negative', message: toUserMessage(err, ERROR_COPY.action.like) })
   }
 }
 </script>
@@ -113,10 +120,6 @@ h1 {
 .state {
   padding: 28px 8px;
   color: var(--mt-text-muted);
-}
-
-.state.error {
-  color: #ff8f8f;
 }
 
 .empty {

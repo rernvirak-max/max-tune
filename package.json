@@ -11,6 +11,7 @@
     "lint:check": "prettier \"**/*.{js,vue,css,html,md,json}\" --ignore-path .gitignore && eslint -c ./eslint.config.js \"./src*/**/*.{js,cjs,mjs,vue}\"",
     "dev": "quasar dev",
     "build": "quasar build",
+    "test:unit": "node --test \"src/**/__tests__/*.test.mjs\"",
     "postinstall": "quasar prepare --silent"
   },
   "dependencies": {

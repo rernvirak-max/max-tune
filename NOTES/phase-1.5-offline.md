@@ -9,7 +9,7 @@ Branch: `feature/phase-1.5-offline`
 - Player local blob fallback + offline play notify (`src/stores/player-store.js`)
 - Connectivity banner (`useConnectivity` + MainLayout) ? browser offline OR engine unreachable
 - TrackRow / Now Playing / Playlist download / Library All|Downloaded / Settings storage
-- Quasar PWA shell (`src-pwa/register-sw.js` + `manifest.json`) ? **audio stays in IndexedDB**, not SW cache exclusively
+- Quasar PWA shell (`src-pwa/register-service-worker.js` + `manifest.json`) ? **audio stays in IndexedDB**, not SW cache exclusively
 - Frozen copy in `src/constants/offline-copy.js`
 
 ## Dogfood (Android Chrome + desktop Chromium)

@@ -1,19 +1,30 @@
 <template>
   <div
     class="track-row row items-center"
-    :class="{ playing: isPlaying }"
+    :class="{ playing: isPlaying, fresh }"
     @dblclick="$emit('play', track)"
   >
     <div class="cover flex flex-center">
-      <img v-if="coverSrc" :src="coverSrc" :alt="track.title" />
+      <img
+        v-if="coverSrc && !isBrokenImage(coverSrc)"
+        :src="coverSrc"
+        alt=""
+        @error="markBrokenImage(coverSrc)"
+      />
       <q-icon v-else name="music_note" size="22px" />
     </div>
 
     <div class="meta col ellipsis">
-      <div class="title ellipsis">{{ track.title }}</div>
+      <div class="title row no-wrap items-center">
+        <span class="ellipsis">{{ track.title }}</span>
+        <span v-if="fresh" class="new-pill">{{ ytCopy.newPill }}</span>
+      </div>
       <div class="artist ellipsis">
         {{ track.artist_name || 'Unknown artist' }}
         <span v-if="track.album_name"> · {{ track.album_name }}</span>
+        <span v-if="track.source === 'youtube'" class="source-tag">
+          <q-icon name="smart_display" size="13px" />{{ ytCopy.sourceTag }}
+        </span>
       </div>
     </div>
 
@@ -30,7 +41,7 @@
       @click.stop="$emit('like', track)"
     />
 
-    <div class="offline-ctrl flex flex-center" @click.stop>
+    <div class="offline-ctrl flex flex-center gt-xs" @click.stop>
       <q-circular-progress
         v-if="dlProgress?.status === 'downloading'"
         :value="dlProgress.pct || 0"
@@ -102,7 +113,7 @@
       round
       dense
       icon="playlist_add"
-      class="add"
+      class="add gt-xs"
       aria-label="Add to playlist"
       @click.stop="$emit('add', track)"
     >
@@ -114,10 +125,43 @@
       round
       dense
       :icon="removeIcon"
-      class="danger"
+      class="danger gt-xs"
       aria-label="Remove"
       @click.stop="$emit('remove', track)"
     />
+    <q-btn
+      flat
+      round
+      dense
+      icon="more_vert"
+      class="more lt-sm"
+      aria-label="More actions"
+      @click.stop
+    >
+      <q-menu dark anchor="bottom right" self="top right">
+        <q-list dark class="mt-menu">
+          <q-item
+            v-close-popup
+            clickable
+            :disable="!canDownload || dlProgress?.status === 'downloading'"
+            @click="onOfflineClick"
+          >
+            <q-item-section avatar>
+              <q-icon :name="isAvailable ? 'download_done' : 'download'" />
+            </q-item-section>
+            <q-item-section>{{ offlineMenuLabel }}</q-item-section>
+          </q-item>
+          <q-item v-if="showAdd" v-close-popup clickable @click="$emit('add', track)">
+            <q-item-section avatar><q-icon name="playlist_add" /></q-item-section>
+            <q-item-section>Add to playlist</q-item-section>
+          </q-item>
+          <q-item v-if="showRemove" v-close-popup clickable @click="$emit('remove', track)">
+            <q-item-section avatar><q-icon :name="removeIcon" /></q-item-section>
+            <q-item-section>Remove</q-item-section>
+          </q-item>
+        </q-list>
+      </q-menu>
+    </q-btn>
   </div>
 </template>
 
@@ -125,7 +169,9 @@
 import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { OFFLINE_COPY } from '@/constants/offline-copy'
-import { formatDuration, toEngineProxyUrl } from '@/helpers/mediaUrl'
+import { YOUTUBE_COPY } from '@/constants/youtube-copy'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
+import { formatDuration } from '@/helpers/mediaUrl'
 import { useOfflineStore } from '@/stores/offline-store'
 import { usePlayerStore } from '@/stores/player-store'
 
@@ -134,6 +180,8 @@ const props = defineProps({
   showAdd: { type: Boolean, default: false },
   showRemove: { type: Boolean, default: true },
   removeIcon: { type: String, default: 'delete_outline' },
+  /** Just imported: NEW pill + mint wash for a few seconds */
+  fresh: { type: Boolean, default: false },
 })
 
 defineEmits(['play', 'remove', 'add', 'like'])
@@ -142,8 +190,10 @@ const $q = useQuasar()
 const player = usePlayerStore()
 const offline = useOfflineStore()
 const copy = OFFLINE_COPY
+const ytCopy = YOUTUBE_COPY
 
-const coverSrc = computed(() => toEngineProxyUrl(props.track.cover_url))
+// Cached cover when downloaded (offline-safe), else the engine URL
+const coverSrc = computed(() => offline.coverFor(props.track))
 const isPlaying = computed(() => player.currentTrack?.id === props.track.id)
 const canDownload = computed(() => offline.isDownloadable(props.track))
 const isAvailable = computed(() => offline.isDownloaded(props.track.id))
@@ -152,6 +202,11 @@ const pctLabel = computed(() => {
   const pct = dlProgress.value?.pct
   if (pct == null || pct === 0) return copy.state.downloading
   return copy.state.downloadingPct(pct)
+})
+const offlineMenuLabel = computed(() => {
+  if (isAvailable.value) return copy.action.removeDownload
+  if (!canDownload.value) return copy.err.linked
+  return copy.action.makeOffline
 })
 
 async function onOfflineClick() {
@@ -177,6 +232,7 @@ async function onOfflineClick() {
 
 <style scoped>
 .track-row {
+  --tap-target: 44px;
   gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
@@ -188,11 +244,13 @@ async function onOfflineClick() {
   background: var(--mt-bg-panel-hover);
 }
 
-.track-row.playing {
+.track-row.playing,
+.track-row.fresh {
   background: var(--mt-accent-soft);
 }
 
-.track-row.playing::before {
+.track-row.playing::before,
+.track-row.fresh::before {
   content: '';
   position: absolute;
   left: 0;
@@ -201,6 +259,26 @@ async function onOfflineClick() {
   width: 3px;
   border-radius: 999px;
   background: var(--mt-accent);
+}
+
+.new-pill {
+  flex: none;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--mt-accent);
+  color: var(--mt-bg);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.source-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  color: var(--mt-text-dim);
 }
 
 .cover {
@@ -296,6 +374,24 @@ async function onOfflineClick() {
 
 .danger:hover {
   color: #ff8f8f !important;
+}
+
+.more {
+  color: var(--mt-text-muted) !important;
+}
+
+.mt-menu {
+  background: var(--mt-bg-elevated);
+  min-width: 200px;
+}
+
+@media (max-width: 599px) {
+  .like,
+  .play,
+  .more {
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

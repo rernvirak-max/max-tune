@@ -7,6 +7,27 @@ import * as offlineDb from '@/services/offline-db'
 /** @type {Map<string|number, string>} live object URLs for local blobs */
 const blobUrls = new Map()
 
+/**
+ * @param {string|null|undefined} coverUrl
+ * @returns {Promise<Blob|null>} cover image, or null (covers are optional)
+ */
+async function fetchCoverBlob(coverUrl) {
+  const url = toEngineProxyUrl(coverUrl)
+  if (!url) return null
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('max_tune_token') : null
+  try {
+    const res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'same-origin',
+    })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return blob.type.startsWith('image/') ? blob : null
+  } catch {
+    return null
+  }
+}
+
 function loadWifiOnly() {
   if (typeof localStorage === 'undefined') return true
   const raw = localStorage.getItem(WIFI_ONLY_STORAGE_KEY)
@@ -27,7 +48,10 @@ export function isTrackDownloadable(track) {
   if (!stream) return false
 
   try {
-    const url = new URL(stream, typeof window !== 'undefined' ? window.location.origin : 'http://local')
+    const url = new URL(
+      stream,
+      typeof window !== 'undefined' ? window.location.origin : 'http://local',
+    )
     const host = url.hostname.toLowerCase()
     if (host.includes('jamendo.com') || host.includes('jamendo.')) return false
     // Signed engine stream: /api/tracks/{id}/stream
@@ -96,16 +120,24 @@ export const useOfflineStore = defineStore('offline', {
     hydrating: false,
     /** playlist download job */
     playlistJob: null,
+    /** @type {Record<string, string>} object URLs for cached cover art (IndexedDB coverBlob) */
+    coverUrls: {},
   }),
 
   getters: {
     downloadedList: (state) =>
-      Object.values(state.downloaded).sort(
-        (a, b) => (b.downloadedAt || 0) - (a.downloadedAt || 0),
-      ),
+      Object.values(state.downloaded).sort((a, b) => (b.downloadedAt || 0) - (a.downloadedAt || 0)),
     downloadedCount: (state) => Object.keys(state.downloaded).length,
     isDownloaded: (state) => (trackId) => Boolean(state.downloaded[String(trackId)]),
     getProgress: (state) => (trackId) => state.progress[String(trackId)] || null,
+    /**
+     * Cover to render for a track: the cached copy when it's downloaded (works offline and
+     * after the engine's signed cover URL expires), else the engine URL.
+     */
+    coverFor: (state) => (track) => {
+      if (!track) return null
+      return state.coverUrls[String(track.id)] || toEngineProxyUrl(track.cover_url)
+    },
   },
 
   actions: {
@@ -116,9 +148,12 @@ export const useOfflineStore = defineStore('offline', {
         const rows = await offlineDb.listTracks()
         /** @type {Record<string, object>} */
         const map = {}
+        /** @type {Record<string, string>} */
+        const covers = {}
         let total = 0
         for (const row of rows) {
           const key = String(row.id)
+          if (row.coverBlob) covers[key] = URL.createObjectURL(row.coverBlob)
           map[key] = {
             id: row.id,
             meta: row.meta,
@@ -128,8 +163,13 @@ export const useOfflineStore = defineStore('offline', {
           total += row.sizeBytes || 0
         }
         this.downloaded = map
+        this.coverUrls = covers
         this.totalBytes = total
         this.hydrated = true
+        // Downloads saved before covers were cached (or whose cover fetch failed): fill in now
+        this.backfillCovers(rows.filter((row) => !row.coverBlob).map((row) => row.meta)).catch(
+          () => {},
+        )
       } catch (err) {
         console.warn('[offline] hydrate failed', err)
       } finally {
@@ -259,20 +299,8 @@ export const useOfflineStore = defineStore('offline', {
         const audioBlob = new Blob(chunks, { type: mime })
         const sizeBytes = audioBlob.size
 
-        /** @type {Blob|null} */
-        let coverBlob = null
-        const coverUrl = toEngineProxyUrl(track.cover_url)
-        if (coverUrl) {
-          try {
-            const coverRes = await fetch(coverUrl, {
-              headers: token ? { Authorization: `Bearer ${token}` } : {},
-              credentials: 'same-origin',
-            })
-            if (coverRes.ok) coverBlob = await coverRes.blob()
-          } catch {
-            // optional cover - ignore
-          }
-        }
+        // Cache cover art with the audio so rows / mini player / Now Playing work offline
+        const coverBlob = await fetchCoverBlob(track.cover_url)
 
         const meta = {
           id: track.id,
@@ -307,6 +335,7 @@ export const useOfflineStore = defineStore('offline', {
             downloadedAt: Date.now(),
           },
         }
+        if (coverBlob) this.setCoverBlob(key, coverBlob)
         this.totalBytes = Object.values(this.downloaded).reduce(
           (s, row) => s + (row.sizeBytes || 0),
           0,
@@ -347,7 +376,9 @@ export const useOfflineStore = defineStore('offline', {
      */
     async downloadPlaylist(tracks, opts = {}) {
       const list = Array.isArray(tracks) ? tracks : []
-      const downloadable = list.filter((t) => isTrackDownloadable(t) && !this.downloaded[String(t.id)])
+      const downloadable = list.filter(
+        (t) => isTrackDownloadable(t) && !this.downloaded[String(t.id)],
+      )
       const already = list.filter((t) => this.downloaded[String(t.id)])
       const skipped = list.filter((t) => !isTrackDownloadable(t))
 
@@ -381,7 +412,9 @@ export const useOfflineStore = defineStore('offline', {
         total: downloadable.length + already.length,
         skipped: skipped.length,
         status: 'running',
-        aboutBytes: aboutBytes + already.reduce((s, t) => s + (this.downloaded[String(t.id)]?.sizeBytes || 0), 0),
+        aboutBytes:
+          aboutBytes +
+          already.reduce((s, t) => s + (this.downloaded[String(t.id)]?.sizeBytes || 0), 0),
       }
 
       let succeeded = already.length
@@ -446,6 +479,45 @@ export const useOfflineStore = defineStore('offline', {
       return row?.meta || null
     },
 
+    /**
+     * @param {string} key
+     * @param {Blob|null} blob
+     */
+    setCoverBlob(key, blob) {
+      const next = { ...this.coverUrls }
+      if (next[key]) URL.revokeObjectURL(next[key])
+      if (blob) {
+        next[key] = URL.createObjectURL(blob)
+      } else {
+        delete next[key]
+      }
+      this.coverUrls = next
+    },
+
+    /**
+     * Best-effort: cache covers for downloaded tracks that don't have one yet.
+     * Pass fresh track objects (e.g. the library list) so signed cover URLs are current.
+     * @param {object[]} tracks
+     */
+    async backfillCovers(tracks) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+      const list = (Array.isArray(tracks) ? tracks : []).filter(
+        (t) => t?.cover_url && this.downloaded[String(t.id)] && !this.coverUrls[String(t.id)],
+      )
+      for (const track of list) {
+        const blob = await fetchCoverBlob(track.cover_url)
+        if (!blob) continue
+        try {
+          const row = await offlineDb.getTrack(track.id)
+          if (!row) continue
+          await offlineDb.putTrack({ ...row, coverBlob: blob })
+          this.setCoverBlob(String(track.id), blob)
+        } catch (err) {
+          console.warn('[offline] cover backfill failed', err)
+        }
+      }
+    },
+
     revokeBlobUrl(trackId) {
       const key = String(trackId)
       const url = blobUrls.get(key)
@@ -458,6 +530,7 @@ export const useOfflineStore = defineStore('offline', {
     async removeTrack(trackId) {
       const key = String(trackId)
       this.revokeBlobUrl(trackId)
+      this.setCoverBlob(key, null)
       await offlineDb.deleteTrack(trackId)
       const next = { ...this.downloaded }
       delete next[key]
@@ -488,6 +561,8 @@ export const useOfflineStore = defineStore('offline', {
         this.revokeBlobUrl(key)
       }
       await offlineDb.clearAll()
+      for (const url of Object.values(this.coverUrls)) URL.revokeObjectURL(url)
+      this.coverUrls = {}
       this.downloaded = {}
       this.progress = {}
       this.totalBytes = 0

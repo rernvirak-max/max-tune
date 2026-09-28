@@ -11,10 +11,12 @@
     </header>
 
     <div v-if="store.loading" class="state">Loading playlists…</div>
-    <div v-else-if="store.error && !store.playlists.length" class="state error">
-      {{ store.error }}
-    </div>
-    <div v-else-if="store.isEmpty" class="empty column items-center text-center">
+    <LoadError
+      v-else-if="store.error && !store.playlists.length"
+      :message="store.error"
+      @retry="load"
+    />
+    <div v-else-if="store.isEmpty && !store.error" class="empty column items-center text-center">
       <div class="mt-empty-art art" />
       <h2 class="mt-display">Create your first stack</h2>
       <p>Create a stack, then add tracks from your library.</p>
@@ -28,7 +30,12 @@
         class="card"
       >
         <div class="cover flex flex-center">
-          <img v-if="coverOf(playlist)" :src="coverOf(playlist)" :alt="playlist.title" />
+          <img
+            v-if="coverOf(playlist) && !isBrokenImage(coverOf(playlist))"
+            :src="coverOf(playlist)"
+            alt=""
+            @error="markBrokenImage(coverOf(playlist))"
+          />
           <q-icon v-else name="queue_music" size="36px" />
         </div>
         <div class="meta">
@@ -50,15 +57,21 @@ import { useRouter } from 'vue-router'
 import { usePlaylistStore } from '@/stores/playlist-store'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { toEngineProxyUrl } from '@/helpers/mediaUrl'
+import LoadError from '@/components/common/LoadError.vue'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
+import { toUserMessage } from '@/helpers/userError'
 
 const $q = useQuasar()
 const router = useRouter()
 const store = usePlaylistStore()
 const connectivity = useConnectivity()
 
-onMounted(() => {
+function load() {
   store.fetchPlaylists().catch(() => {})
-})
+}
+
+onMounted(load)
 
 function coverOf(playlist) {
   return toEngineProxyUrl(playlist.cover_url)
@@ -91,7 +104,11 @@ function openCreate() {
       $q.notify({ type: 'positive', message: 'Playlist created', position: 'top' })
       router.push({ name: 'playlist-detail', params: { id: playlist.id } })
     } catch (err) {
-      $q.notify({ type: 'negative', message: err?.message || 'Create failed', position: 'top' })
+      $q.notify({
+        type: 'negative',
+        message: toUserMessage(err, ERROR_COPY.action.createPlaylist),
+        position: 'top',
+      })
     }
   })
 }
@@ -142,10 +159,6 @@ h1 {
 .state {
   padding: 28px 8px;
   color: var(--mt-text-muted);
-}
-
-.state.error {
-  color: #ff8f8f;
 }
 
 .empty {

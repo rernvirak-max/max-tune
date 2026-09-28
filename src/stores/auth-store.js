@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { engineAPI } from '@/helpers/api'
 import { ApiError } from '@/helpers/api/createApiClient'
+import { ERROR_COPY } from '@/constants/error-copy'
+import { toUserMessage } from '@/helpers/userError'
+import { useImportsStore } from '@/stores/imports-store'
 
 const TOKEN_KEY = 'max_tune_token'
 
@@ -78,7 +81,10 @@ export const useAuthStore = defineStore('auth', {
         await this.fetchMe()
         return true
       } catch (err) {
-        this.error = err?.message || 'Login failed'
+        this.error = toUserMessage(err, ERROR_COPY.auth.login, {
+          context: 'login',
+          network: ERROR_COPY.unreachable,
+        })
         const fieldErrors = err instanceof ApiError ? err.body?.errors : null
         if (fieldErrors?.email?.[0]) {
           this.error = fieldErrors.email[0]
@@ -102,7 +108,10 @@ export const useAuthStore = defineStore('auth', {
         await this.fetchMe()
         return true
       } catch (err) {
-        this.error = err?.message || "Couldn't create account"
+        this.error = toUserMessage(err, ERROR_COPY.auth.register, {
+          context: 'register',
+          network: ERROR_COPY.unreachable,
+        })
         throw err
       } finally {
         this.loading = false
@@ -126,6 +135,7 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.setToken(null)
         this.user = null
+        useImportsStore().stop()
       }
     },
   },

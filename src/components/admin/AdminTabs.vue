@@ -17,6 +17,7 @@ const tabs = [
   { name: 'admin-invites', label: 'Invites' },
   { name: 'admin-users', label: 'Users' },
   { name: 'admin-tracks', label: 'Tracks' },
+  { name: 'admin-youtube', label: 'YouTube' },
 ]
 </script>
 <style scoped>
