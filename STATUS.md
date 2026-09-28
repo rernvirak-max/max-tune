@@ -118,7 +118,7 @@ Signed or owner auth:
 | `/library` | Upload + library (+ Downloaded filter) |
 | `/liked` | Liked songs |
 | `/playlists`, `/playlists/:id` | Playlists |
-| `/search` | Library + Jamendo search |
+| `/search` | Library + Jamendo + YouTube search (Download → existing import) |
 | `/settings` | Settings (theme + playback + offline) |
 
 ---

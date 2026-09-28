@@ -20,3 +20,14 @@ export async function importJamendoTrack(externalId) {
   })
   return res?.data ?? res
 }
+
+/**
+ * YouTube Data API search (metadata). Download via submitYoutubeImport(watch_url).
+ * @param {{ q: string, limit?: number }} params
+ */
+export async function searchYoutube(params) {
+  const query = new URLSearchParams()
+  query.set('q', params.q)
+  if (params.limit) query.set('limit', String(params.limit))
+  return engineAPI.get(`/catalog/youtube?${query}`)
+}

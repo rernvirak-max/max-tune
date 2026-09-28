@@ -2,15 +2,18 @@
   <q-page class="mt-page page">
     <header class="head">
       <h1 class="mt-display">Search</h1>
-      <p class="sub">Your library and Creative Commons catalog</p>
+      <p class="sub">Your library, Jamendo, and YouTube</p>
     </header>
 
     <div class="tabs row q-gutter-sm q-mb-md">
       <button type="button" class="tab" :class="{ on: tab === 'library' }" @click="tab = 'library'">
         Library
       </button>
-      <button type="button" class="tab" :class="{ on: tab === 'catalog' }" @click="tab = 'catalog'">
+      <button type="button" class="tab" :class="{ on: tab === 'jamendo' }" @click="tab = 'jamendo'">
         Jamendo
+      </button>
+      <button type="button" class="tab" :class="{ on: tab === 'youtube' }" @click="tab = 'youtube'">
+        YouTube
       </button>
     </div>
 
@@ -20,7 +23,7 @@
         v-model="q"
         class="search-input"
         type="search"
-        :placeholder="tab === 'library' ? 'Search your tracks…' : 'Search Jamendo catalog…'"
+        :placeholder="placeholder"
         @keydown.enter.prevent="runSearch"
       />
     </div>
@@ -42,7 +45,7 @@
       />
     </div>
 
-    <div v-else-if="tab === 'catalog' && results.length" class="list">
+    <div v-else-if="tab === 'jamendo' && results.length" class="list">
       <div v-for="item in results" :key="item.external_id" class="catalog-row row items-center">
         <div class="cover flex flex-center">
           <img
@@ -68,7 +71,7 @@
           icon="play_arrow"
           class="play"
           :disable="!item.stream_url"
-          @click="previewCatalog(item)"
+          @click="previewJamendo(item)"
         />
         <q-btn
           unelevated
@@ -77,7 +80,35 @@
           class="import"
           :disable="item.imported || importingId === item.external_id"
           :label="item.imported ? 'In library' : 'Add'"
-          @click="importItem(item)"
+          @click="importJamendo(item)"
+        />
+      </div>
+    </div>
+
+    <div v-else-if="tab === 'youtube' && results.length" class="list">
+      <div v-for="item in results" :key="item.external_id" class="catalog-row row items-center">
+        <div class="cover flex flex-center">
+          <img
+            v-if="item.cover_url && !isBrokenImage(item.cover_url)"
+            :src="item.cover_url"
+            alt=""
+            @error="markBrokenImage(item.cover_url)"
+          />
+          <q-icon v-else name="smart_display" size="22px" />
+        </div>
+        <div class="meta col ellipsis">
+          <div class="title ellipsis">{{ item.title }}</div>
+          <div class="artist ellipsis">{{ item.artist_name || 'YouTube' }}</div>
+        </div>
+        <div class="duration gt-xs">{{ formatDuration(item.duration_ms) }}</div>
+        <q-btn
+          unelevated
+          no-caps
+          dense
+          class="import"
+          :disable="item.imported || item.importing || importingId === item.external_id"
+          :label="youtubeAddLabel(item)"
+          @click="importYoutube(item)"
         />
       </div>
     </div>
@@ -85,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import TrackRow from '@/components/library/TrackRow.vue'
@@ -94,8 +125,9 @@ import { ERROR_COPY } from '@/constants/error-copy'
 import { isBrokenImage, markBrokenImage } from '@/helpers/brokenImages'
 import { formatDuration } from '@/helpers/mediaUrl'
 import { toUserMessage } from '@/helpers/userError'
-import { importJamendoTrack, searchJamendo } from '@/services/engine/catalog'
+import { importJamendoTrack, searchJamendo, searchYoutube } from '@/services/engine/catalog'
 import { listTracks } from '@/services/engine/tracks'
+import { useImportsStore } from '@/stores/imports-store'
 import { useLibraryStore } from '@/stores/library-store'
 import { useLikesStore } from '@/stores/likes-store'
 import { usePlayerStore } from '@/stores/player-store'
@@ -103,6 +135,7 @@ import { usePlaylistStore } from '@/stores/playlist-store'
 
 const $q = useQuasar()
 const router = useRouter()
+const imports = useImportsStore()
 const library = useLibraryStore()
 const likes = useLikesStore()
 const player = usePlayerStore()
@@ -116,6 +149,12 @@ const error = ref(null)
 const searched = ref(false)
 const importingId = ref(null)
 let timer = null
+
+const placeholder = computed(() => {
+  if (tab.value === 'library') return 'Search your tracks…'
+  if (tab.value === 'jamendo') return 'Search Jamendo catalog…'
+  return 'Search YouTube…'
+})
 
 watch(tab, () => {
   results.value = []
@@ -147,15 +186,18 @@ async function runSearch() {
     if (tab.value === 'library') {
       const data = await listTracks({ q: query, per_page: 50 })
       results.value = data.data || []
-    } else {
+    } else if (tab.value === 'jamendo') {
       const data = await searchJamendo({ q: query, limit: 24 })
+      results.value = data.data || []
+    } else {
+      const data = await searchYoutube({ q: query, limit: 24 })
       results.value = data.data || []
     }
   } catch (err) {
     results.value = []
     error.value = toUserMessage(err, ERROR_COPY.load.search, {
       context: 'search',
-      allowServerMessage: false,
+      allowServerMessage: tab.value !== 'library',
     })
   } finally {
     loading.value = false
@@ -166,7 +208,7 @@ function playLibrary(index) {
   player.playQueue(results.value, index)
 }
 
-function previewCatalog(item) {
+function previewJamendo(item) {
   player.playTrack({
     id: `jamendo-${item.external_id}`,
     title: item.title,
@@ -180,7 +222,13 @@ function previewCatalog(item) {
   })
 }
 
-async function importItem(item) {
+function youtubeAddLabel(item) {
+  if (item.imported) return 'In library'
+  if (item.importing || importingId.value === item.external_id) return 'Queued'
+  return 'Download'
+}
+
+async function importJamendo(item) {
   importingId.value = item.external_id
   try {
     const track = await importJamendoTrack(item.external_id)
@@ -191,6 +239,24 @@ async function importItem(item) {
     $q.notify({
       type: 'negative',
       message: toUserMessage(err, ERROR_COPY.action.importTrack),
+      position: 'top',
+    })
+  } finally {
+    importingId.value = null
+  }
+}
+
+async function importYoutube(item) {
+  importingId.value = item.external_id
+  try {
+    await imports.submit(item.watch_url)
+    item.importing = true
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: toUserMessage(err, ERROR_COPY.action.importTrack, {
+        allowServerMessage: true,
+      }),
       position: 'top',
     })
   } finally {
