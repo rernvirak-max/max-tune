@@ -9,7 +9,7 @@ Personal multi-tenant music platform: Quasar SPA (`max-tune`) + Laravel API (`ma
 **Phase 0 (shell)** — done  
 **Phase 1 online MVP** — done  
 **Phase 1.1 Pulse Room UI + background / Media Session** — done (merged PR #1)  
-**Phase 1.25 Jamendo catalog** — code done, blocked on Jamendo account approval / `JAMENDO_CLIENT_ID`  
+**Phase 1.25 Jamendo catalog** — done (set `JAMENDO_CLIENT_ID`; Search → Jamendo works)  
 **Phase 1.5 offline** — done (merged PR #2; SPA IndexedDB + PWA; no engine changes)  
 **Phase 2 invite** — Spec + Design locked; implement in progress  
 
@@ -45,11 +45,12 @@ Personal multi-tenant music platform: Quasar SPA (`max-tune`) + Laravel API (`ma
 - Liked songs page + Home tiles
 - Heart on track rows and player bar
 
-### Catalog (Jamendo) — implemented, needs key
+### Catalog (Jamendo) — live
 - Search: `GET /api/catalog/jamendo?q=`
 - Import linked track: `POST /api/catalog/jamendo/import`
 - Search page tabs: **Library** | **Jamendo**
 - Linked imports use Jamendo stream/cover URLs (no file download yet)
+- Env: `JAMENDO_CLIENT_ID` on engine (local + Coolify)
 
 ### Offline (Phase 1.5)
 - IndexedDB downloads; Wi‑Fi-only default ON; Settings storage manage
@@ -80,20 +81,16 @@ Frontend API mode (`src/helpers/api/apiConfig.js`): local uses `/engine/api`.
 
 ---
 
-## Blocked / setup needed
+## Setup notes
 
 ### Jamendo
-1. Account must be **active/approved** on [devportal.jamendo.com](https://devportal.jamendo.com) (currently: *"isn't active or hasn't been approved yet"*).
-2. Create an application → copy `client_id`.
-3. In `max-tune-engine/.env`:
+Set on engine (never commit secrets):
 
 ```env
 JAMENDO_CLIENT_ID=your_client_id
 ```
 
-4. Restart the API process.
-
-Until then, catalog search returns a clear 502 / config error. Integration code is ready.
+Coolify web (+ worker if it shares env): same key → restart/redeploy. SPA Search → **Jamendo** tab.
 
 ---
 
@@ -130,8 +127,7 @@ Signed or owner auth:
 
 1. **Phase 2 invite** — invite codes, admin, quotas (Spec+Design locked; implement in progress).
 2. **Polish** — PWA NOTES/lockfile leftovers; shuffle/repeat (PRs coming).
-3. **Unblock Jamendo** — approve account, set `JAMENDO_CLIENT_ID`, smoke-test Search → Jamendo.
-4. Optional: playlist reorder UI, stored Jamendo imports, Herd restore.
+3. Optional: playlist reorder UI, stored Jamendo imports, Herd restore.
 
 ---
 
