@@ -2,9 +2,20 @@
   <q-page class="admin-page">
     <header class="head">
       <h1 class="mt-display">Users</h1>
-      <p class="sub">Disable accounts and override quotas</p>
+      <p class="sub">Create accounts, disable users and override quotas</p>
     </header>
     <AdminTabs />
+    <div class="toolbar">
+      <span class="muted">{{ users.length }} {{ users.length === 1 ? 'user' : 'users' }}</span>
+      <q-btn
+        class="pill"
+        unelevated
+        no-caps
+        icon="person_add"
+        label="Create user"
+        @click="showCreateUser = true"
+      />
+    </div>
 
     <div v-if="loading" class="panel"><div class="row-item">Loading…</div></div>
     <div v-else-if="error" class="panel err">Couldn’t load users <q-btn flat label="Retry" @click="load" /></div>
@@ -43,6 +54,8 @@
       </div>
     </div>
 
+    <CreateUserDialog v-model="showCreateUser" @created="load" />
+
     <q-dialog v-model="showQuota">
       <q-card class="dialog-card">
         <q-card-section>
@@ -66,11 +79,13 @@ import { onMounted, ref } from 'vue'
 import { Dialog, Notify } from 'quasar'
 import { engineAPI } from '@/helpers/api'
 import AdminTabs from '@/components/admin/AdminTabs.vue'
+import CreateUserDialog from '@/components/admin/CreateUserDialog.vue'
 
 const users = ref([])
 const loading = ref(true)
 const error = ref(false)
 const showQuota = ref(false)
+const showCreateUser = ref(false)
 const quotaGb = ref(5)
 const quotaUser = ref(null)
 
