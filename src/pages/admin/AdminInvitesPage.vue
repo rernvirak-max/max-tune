@@ -32,7 +32,28 @@
         <span class="chip" :class="chipClass(inv.status)">{{ statusLabel(inv.status) }}</span>
         <div class="actions">
           <q-btn flat dense round icon="content_copy" aria-label="Copy code" @click="copyCode(inv)" />
-          <q-btn flat dense round icon="link" aria-label="Copy link" @click="copyLink(inv)" />
+          <template v-if="inv.status === 'active'">
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="link"
+              label="Copy link"
+              class="link-action"
+              :aria-label="`Copy invite link for ${inv.code}`"
+              @click="copyLink(inv)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              :icon="canNativeShare() ? 'ios_share' : 'share'"
+              label="Share"
+              class="link-action"
+              :aria-label="`Share invite link for ${inv.code}`"
+              @click="shareLink(inv)"
+            />
+          </template>
           <q-btn
             v-if="inv.status === 'active'"
             flat
@@ -73,8 +94,11 @@ import { Notify, Dialog } from 'quasar'
 import { engineAPI } from '@/helpers/api'
 import { ERROR_COPY } from '@/constants/error-copy'
 import { toUserMessage } from '@/helpers/userError'
+import { buildInviteLink, getRouterLinkConfig } from '@/helpers/appLinks'
+import { useCopyShare } from '@/composables/useCopyShare'
 import AdminTabs from '@/components/admin/AdminTabs.vue'
 
+const { copyText, shareOrCopy, canNativeShare } = useCopyShare()
 const invites = ref([])
 const loading = ref(true)
 const error = ref(false)
@@ -133,14 +157,21 @@ async function create() {
   }
 }
 
+function inviteLink(inv) {
+  return buildInviteLink({ origin: window.location.origin, code: inv.code, ...getRouterLinkConfig() })
+}
 function copyCode(inv) {
-  navigator.clipboard?.writeText(inv.code)
-  Notify.create({ message: 'Copied', color: 'dark', timeout: 1500 })
+  copyText(inv.code)
 }
 function copyLink(inv) {
-  const url = `${window.location.origin}/#/register?code=${encodeURIComponent(inv.code)}`
-  navigator.clipboard?.writeText(url)
-  Notify.create({ message: 'Copied', color: 'dark', timeout: 1500 })
+  copyText(inviteLink(inv), 'Link copied')
+}
+function shareLink(inv) {
+  shareOrCopy({
+    title: 'Join me on MaxTune',
+    text: 'You’re invited to MaxTune.',
+    url: inviteLink(inv),
+  })
 }
 function confirmRevoke(inv) {
   Dialog.create({
@@ -211,7 +242,8 @@ onMounted(load)
 }
 .danger-outline { color: #ff8f8f !important; border-color: #ff8f8f !important; }
 .muted { color: var(--mt-text-muted); }
-.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.link-action { color: var(--mt-accent); }
 
 .invite-row { grid-template-columns: 1.4fr 0.6fr 0.8fr 0.7fr auto; }
 .dialog-card {

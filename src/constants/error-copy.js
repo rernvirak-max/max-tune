@@ -24,6 +24,8 @@ export const ERROR_COPY = Object.freeze({
     removeFromPlaylist: 'Couldn’t remove from playlist. Try again.',
     importTrack: 'Couldn’t add to your library. Try again.',
     createInvite: 'Couldn’t create invite. Try again.',
+    createUser: 'Couldn’t create this user. Try again.',
+    copy: 'Couldn’t copy. Select the text and copy it manually.',
     upload: 'Upload failed. Try again.',
     uploadNetwork: 'Upload failed · check your connection',
     play: 'Couldn’t play this track.',
