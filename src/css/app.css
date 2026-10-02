@@ -137,9 +137,7 @@ body {
     animation: none;
   }
 
-  .mt-brand-mark,
-  [class*='mt-pulse'],
-  .mt-brand-mark {
+  [class*='mt-pulse'] {
     animation: none !important;
   }
 }

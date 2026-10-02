@@ -10,8 +10,7 @@
     >
       <div class="mt-sidebar-inner column full-height">
         <router-link :to="{ name: 'home' }" class="mt-brand row items-center no-underline">
-          <span class="mt-brand-mark" aria-hidden="true" />
-          <span class="mt-display mt-brand-name">MaxTune</span>
+          <BrandLockup :height="44" />
         </router-link>
 
         <nav class="mt-nav column q-gutter-y-xs q-mt-lg">
@@ -101,6 +100,7 @@
 import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
+import BrandLockup from '@/components/common/BrandLockup.vue'
 import PlayerBar from '@/components/player/PlayerBar.vue'
 import NowPlayingSheet from '@/components/player/NowPlayingSheet.vue'
 import { useConnectivity } from '@/composables/useConnectivity'
@@ -168,22 +168,6 @@ const initials = computed(() => {
   gap: 12px;
   color: var(--mt-text);
   text-decoration: none;
-}
-
-.mt-brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  background:
-    radial-gradient(circle at 30% 30%, #3dffb5, transparent 55%),
-    linear-gradient(135deg, #ff7a45, #1a2332);
-  box-shadow: 0 0 24px rgba(61, 255, 181, 0.25);
-  animation: mt-pulse-soft 3.6s ease-in-out infinite;
-}
-
-.mt-brand-name {
-  font-size: 1.45rem;
-  line-height: 1;
 }
 
 .mt-nav-link {
@@ -336,10 +320,6 @@ const initials = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mt-brand-mark {
-    animation: none;
-  }
-
   .mt-mobile-tab,
   .mt-mobile-tab .q-icon {
     transition: none;
