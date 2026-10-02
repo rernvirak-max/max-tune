@@ -1,7 +1,7 @@
 /**
  * Named backend URLs per APP_MODE — same idea as greyon / ibpf-framework apiConfig.
  * Switch hosts with VITE_APP_MODE=local|staging|production in `.env`
- * Optional VITE_ENGINE_URL overrides ENGINE_URL for one-off pointing.
+ * VITE_ENGINE_URL / VITE_ENGINE_PUBLIC_URL overrides apply in local mode only.
  */
 
 /** @typedef {'local' | 'staging' | 'production'} ApiMode */
@@ -16,7 +16,7 @@
 const API_CONFIG = {
   production: {
     ENGINE_URL: 'https://maxtune-engine.mxlab.site/api',
-    ENGINE_PUBLIC_URL: 'https://maxtune-engine.mxlab.si',
+    ENGINE_PUBLIC_URL: 'https://maxtune-engine.mxlab.site',
   },
   staging: {
     ENGINE_URL: 'https://maxtune-engine.mxlab.site/api',
@@ -42,6 +42,17 @@ export function getApiMode() {
 export function getApiEndpoints() {
   const mode = getApiMode()
   const base = API_CONFIG[mode]
+
+  // Vite overrides are for local pointing only. Staging/production always use
+  // API_CONFIG so a stale Coolify build arg (e.g. ictskills.center) cannot
+  // bake a dead host into the bundle.
+  if (mode !== 'local') {
+    return {
+      ENGINE_URL: base.ENGINE_URL,
+      ENGINE_PUBLIC_URL: base.ENGINE_PUBLIC_URL,
+    }
+  }
+
   const engineOverride = import.meta.env.VITE_ENGINE_URL
   const publicOverride = import.meta.env.VITE_ENGINE_PUBLIC_URL
 

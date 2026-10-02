@@ -12,12 +12,15 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
-# Vite inlines VITE_* at build time → pass them as Coolify *build* variables.
+# Vite inlines VITE_* at build time → pass them as Coolify *build* variables
+# (not runtime env). Wrong host = browser CORS errors that look like API failure.
 # VITE_APP_MODE: local | staging | production (see src/helpers/api/apiConfig.js)
+# Staging/production ignore VITE_ENGINE_* and use apiConfig.js (mxlab.site).
 ARG VITE_APP_MODE=production
-# Optional overrides (empty = use the per-mode defaults in apiConfig.js)
-ARG VITE_ENGINE_URL=""
-ARG VITE_ENGINE_PUBLIC_URL=""
+# Coolify: leave unset, or set to mxlab — never ictskills.center (404 / no CORS).
+# These only affect local mode; defaults kept for clarity / accidental local builds.
+ARG VITE_ENGINE_URL=https://maxtune-engine.mxlab.site/api
+ARG VITE_ENGINE_PUBLIC_URL=https://maxtune-engine.mxlab.site
 
 ENV VITE_APP_MODE=${VITE_APP_MODE} \
     VITE_ENGINE_URL=${VITE_ENGINE_URL} \
