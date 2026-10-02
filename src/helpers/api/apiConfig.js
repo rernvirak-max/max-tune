@@ -15,12 +15,12 @@
 /** @type {Record<ApiMode, ApiEndpoints>} */
 const API_CONFIG = {
   production: {
-    ENGINE_URL: 'https://maxtune-engine.ictskills.center/api',
-    ENGINE_PUBLIC_URL: 'https://maxtune-engine.ictskills.center',
+    ENGINE_URL: 'https://maxtune-engine.mxlab.site/api',
+    ENGINE_PUBLIC_URL: 'https://maxtune-engine.mxlab.si',
   },
   staging: {
-    ENGINE_URL: 'https://maxtune-engine.ictskills.center/api',
-    ENGINE_PUBLIC_URL: 'https://maxtune-engine.ictskills.center',
+    ENGINE_URL: 'https://maxtune-engine.mxlab.site/api',
+    ENGINE_PUBLIC_URL: 'https://maxtune-engine.mxlab.site',
   },
   local: {
     // Vite same-origin proxy → Herd (see quasar.config.js). Avoids .test DNS/CORS issues.
