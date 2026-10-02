@@ -4,8 +4,7 @@
       <div class="glow" aria-hidden="true" />
       <div class="login-card">
         <div class="brand row items-center">
-          <span class="mark" aria-hidden="true" />
-          <span class="mt-display name">MaxTune</span>
+          <BrandLockup :height="52" />
         </div>
         <p class="tagline">Join with an invite</p>
 
@@ -77,6 +76,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Notify } from 'quasar'
+import BrandLockup from '@/components/common/BrandLockup.vue'
 import { useAuthStore } from '@/stores/auth-store'
 import { ApiError } from '@/helpers/api'
 import { ERROR_COPY } from '@/constants/error-copy'
@@ -161,15 +161,6 @@ async function onSubmit() {
   backdrop-filter: blur(18px);
 }
 .brand { gap: 12px; }
-.mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background:
-    radial-gradient(circle at 30% 30%, #3dffb5, transparent 55%),
-    linear-gradient(135deg, #ff7a45, #1a2332);
-}
-.name { font-size: 1.5rem; }
 .tagline {
   margin: 12px 0 24px;
   color: var(--mt-text-muted);
