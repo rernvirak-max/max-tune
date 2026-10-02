@@ -65,8 +65,8 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const email = ref('vireak@maxtune.local')
-const password = ref('password')
+const email = ref('')
+const password = ref('')
 
 const isDisabledError = computed(() =>
   String(auth.error || '').toLowerCase().includes('disabled'),
